@@ -22,7 +22,6 @@ export function ImageEditor({ imageUrl, onImageChange }: ImageEditorProps) {
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
-  const [imgDims, setImgDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
 
   const drawImage = useCallback(() => {
     const canvas = canvasRef.current
@@ -35,7 +34,6 @@ export function ImageEditor({ imageUrl, onImageChange }: ImageEditorProps) {
       // Set canvas size to image size (or fixed size if you want)
       canvas.width = img.width
       canvas.height = img.height
-      setImgDims({ w: img.width, h: img.height })
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.save()
       ctx.translate(canvas.width / 2 + offset.x, canvas.height / 2 + offset.y)

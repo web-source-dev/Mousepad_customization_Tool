@@ -6,7 +6,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
-const TEMPLATES = [
+interface Template {
+  id: number
+  name: string
+  category: string
+  image: string
+  premium: boolean
+}
+
+const TEMPLATES: Template[] = [
   {
     id: 1,
     name: "Neon Gamer",
@@ -82,7 +90,7 @@ const TEMPLATES = [
 const CATEGORIES = ["All", "Gaming", "Abstract", "Nature", "Space"]
 
 interface TemplateGalleryProps {
-  onSelectTemplate: (template: any) => void
+  onSelectTemplate: (template: Template) => void
   horizontal?: boolean
   cardSize?: 'small' | 'normal';
 }

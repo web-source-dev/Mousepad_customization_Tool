@@ -6,7 +6,7 @@ export interface CartItem {
   id: string;
   name: string;
   image: string;
-  specs: Record<string, any>;
+  specs: Record<string, unknown>;
   quantity: number;
   price: number;
 }
