@@ -22,17 +22,15 @@ export default function CartDetailsPage() {
   // Example: Gather all possible data
   const handleCheckout = () => {
     const checkoutData = {
-      items, // all cart items with all fields
+      items,
       subtotal,
       shipping,
       tax,
       total,
-      // Add all customizer data here:
-      // uploadedImages,
-      // editedImage,
-      // ...customizerState,
-      // If you have saved designs, text elements, etc., add them here
+      // ...other data
     };
+
+    console.log("Sending checkout data", checkoutData);
 
     if (typeof window !== "undefined" && window.parent) {
       window.parent.postMessage(
@@ -42,9 +40,11 @@ export default function CartDetailsPage() {
         },
         "*"
       );
+      console.log("Message sent to parent");
+    } else {
+      console.log("Not in an iframe or window.parent not available");
     }
 
-    // Optionally, show a toast or loading state
     setCheckingOut(true);
     setTimeout(() => {
       setCheckingOut(false);
