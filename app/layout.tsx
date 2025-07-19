@@ -14,14 +14,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://mousepad-customizer.com'),
+  metadataBase: new URL('https://evogear.rtnglobal.co/'),
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: 'Custom Mousepad Designer | Create Your Perfect Gaming Surface',
     description: 'Design and customize your own unique mousepad with our advanced editor. Choose from gaming, abstract, nature, and space themes.',
-    url: 'https://mousepad-customizer.com',
+    url: 'https://evogear.rtnglobal.co/',
     siteName: 'Mousepad Customizer',
     images: [
       {
