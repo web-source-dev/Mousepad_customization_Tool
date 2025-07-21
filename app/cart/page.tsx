@@ -7,13 +7,32 @@ import { Trash2, Plus, Minus } from "lucide-react";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import React from "react";
+import React, { useEffect, useState } from "react";
+
+type WixUser = { email: string; id: string } | null;
 
 export default function CartPage() {
   const { items, removeItem, updateItem, clearCart } = useCart();
   const { toast } = useToast();
   const [clearing, setClearing] = React.useState(false);
   const [checkingOut, setCheckingOut] = React.useState(false);
+  const [wixUser, setWixUser] = useState<WixUser>(null);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === "userInfo") {
+        setWixUser({
+          email: event.data.email,
+          id: event.data.id
+        });
+      }
+      if (event.data?.type === "clearCart") {
+        clearCart();
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [clearCart]);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 50 ? 0 : 5.99;
@@ -27,7 +46,7 @@ export default function CartPage() {
       shipping,
       tax,
       total,
-      // ...other data
+      user: wixUser, // <-- include user info
     };
 
     if (typeof window !== "undefined" && window.parent) {
