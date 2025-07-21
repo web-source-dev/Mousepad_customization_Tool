@@ -40,13 +40,17 @@ export default function CartPage() {
   const total = subtotal + shipping + tax;
 
   const handleCheckout = () => {
+    if (!wixUser) {
+      toast && toast({ title: "User info not loaded", description: "Please wait...", duration: 2000 });
+      return;
+    }
     const checkoutData = {
       items,
       subtotal,
       shipping,
       tax,
       total,
-      user: wixUser, // <-- include user info
+      user: wixUser,
     };
 
     if (typeof window !== "undefined" && window.parent) {
@@ -162,7 +166,13 @@ export default function CartPage() {
                 <span>${total.toFixed(2)}</span>
               </div>
             </div>
-            <Button className="w-full mt-6" size="lg" disabled={items.length === 0 || checkingOut} aria-label="Checkout" onClick={handleCheckout}>
+            <Button
+              className="w-full mt-6"
+              size="lg"
+              disabled={items.length === 0 || checkingOut || !wixUser}
+              aria-label="Checkout"
+              onClick={handleCheckout}
+            >
               {checkingOut ? "Processing..." : "Checkout"}
             </Button>
             <AlertDialog>
