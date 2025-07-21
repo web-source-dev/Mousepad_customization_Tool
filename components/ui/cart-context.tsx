@@ -13,6 +13,7 @@ export interface CartItem {
 
 interface CartContextType {
   items: CartItem[];
+  setItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   updateItem: (id: string, updates: Partial<CartItem>) => void;
@@ -30,7 +31,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (stored) {
       try {
         setItems(JSON.parse(stored));
-      } catch {}
+      } catch { }
     }
   }, []);
 
@@ -60,7 +61,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearCart = () => setItems([]);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateItem, clearCart }}>
+    <CartContext.Provider value={{ items, setItems, addItem, removeItem, updateItem, clearCart }}>
       {children}
     </CartContext.Provider>
   );

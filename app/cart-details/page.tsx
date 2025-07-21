@@ -6,20 +6,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, Plus, Minus } from "lucide-react";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import React from "react";
+import React, { useEffect, useState } from "react";
+
+type WixUser = { email: string; id: string } | null;
 
 export default function CartDetailsPage() {
-  const { items, removeItem, updateItem, clearCart } = useCart();
+  const { items, setItems, removeItem, updateItem, clearCart } = useCart();
   const { toast } = useToast();
-  const [clearing, setClearing] = React.useState(false);
-  const [checkingOut, setCheckingOut] = React.useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [wixUser, setWixUser] = useState<WixUser>(null);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === "userInfo") {
+        setWixUser({
+          email: event.data.email,
+          id: event.data.id
+        });
+      }
+      if (event.data?.type === "clearCart") {
+        clearCart();
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [clearCart]);
+
+  useEffect(() => {
+    if (wixUser?.email) {
+      const savedCart = localStorage.getItem(`mousepadCart_${wixUser.email}`);
+      if (savedCart) setItems(JSON.parse(savedCart));
+      else setItems([]); // Empty cart for new user
+    }
+  }, [wixUser, setItems]);
+
+  useEffect(() => {
+    if (wixUser?.email) {
+      localStorage.setItem(`mousepadCart_${wixUser.email}`, JSON.stringify(items));
+    }
+  }, [items, wixUser]);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 50 ? 0 : 5.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
 
-  // Example: Gather all possible data
   const handleCheckout = () => {
     const checkoutData = {
       items,
@@ -30,8 +62,6 @@ export default function CartDetailsPage() {
       // ...other data
     };
 
-    console.log("Sending checkout data", checkoutData);
-
     if (typeof window !== "undefined" && window.parent) {
       window.parent.postMessage(
         {
@@ -40,9 +70,6 @@ export default function CartDetailsPage() {
         },
         "*"
       );
-      console.log("Message sent to parent");
-    } else {
-      console.log("Not in an iframe or window.parent not available");
     }
 
     setCheckingOut(true);
