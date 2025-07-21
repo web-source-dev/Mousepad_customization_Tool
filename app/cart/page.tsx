@@ -20,6 +20,38 @@ export default function CartPage() {
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
 
+  const handleCheckout = () => {
+    const checkoutData = {
+      items,
+      subtotal,
+      shipping,
+      tax,
+      total,
+      // ...other data
+    };
+
+    if (typeof window !== "undefined" && window.parent) {
+      window.parent.postMessage(
+        {
+          type: "checkoutData",
+          payload: checkoutData,
+        },
+        "*"
+      );
+    }
+
+    setCheckingOut(true);
+    setTimeout(() => {
+      setCheckingOut(false);
+      toast &&
+        toast({
+          title: "Checkout (Demo)",
+          description: "Checkout data sent to Wix parent site.",
+          duration: 2000,
+        });
+    }, 1200);
+  };
+
   // Responsive: stack on mobile, side-by-side on desktop
   return (
     <div className="max-w-5xl mx-auto py-8 px-2 md:px-4 flex flex-col md:flex-row gap-8">
@@ -111,7 +143,7 @@ export default function CartPage() {
                 <span>${total.toFixed(2)}</span>
               </div>
             </div>
-            <Button className="w-full mt-6" size="lg" disabled={items.length === 0 || checkingOut} aria-label="Checkout" onClick={async () => { setCheckingOut(true); setTimeout(() => { setCheckingOut(false); toast && toast({ title: "Checkout (Demo)", description: "Checkout is not implemented in this demo.", duration: 2000 }); }, 1200); }}>
+            <Button className="w-full mt-6" size="lg" disabled={items.length === 0 || checkingOut} aria-label="Checkout" onClick={handleCheckout}>
               {checkingOut ? "Processing..." : "Checkout"}
             </Button>
             <AlertDialog>
