@@ -21,6 +21,9 @@ export default function CartPage() {
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       console.log("Cart page received message:", event.data);
+      console.log("Message origin:", event.origin);
+      console.log("Message source:", event.source);
+
       if (event.data?.type === "userInfo") {
         console.log("Setting wixUser:", event.data);
         setWixUser({
@@ -33,20 +36,32 @@ export default function CartPage() {
       }
     }
     window.addEventListener("message", handleMessage);
-    
+
     // Request user info if not received within 2 seconds
     const timeout = setTimeout(() => {
-      if (!wixUser && typeof window !== "undefined" && window.parent) {
+      if (typeof window !== "undefined" && window.parent) {
         console.log("Requesting user info from parent...");
         window.parent.postMessage({ type: "requestUserInfo" }, "*");
       }
     }, 2000);
-    
+
     return () => {
       window.removeEventListener("message", handleMessage);
       clearTimeout(timeout);
     };
-  }, [clearCart, wixUser]);
+  }, [clearCart]);
+
+  // Separate effect to request user info if not received
+  useEffect(() => {
+    if (!wixUser && typeof window !== "undefined" && window.parent) {
+      const timeout = setTimeout(() => {
+        console.log("Requesting user info from parent...");
+        window.parent.postMessage({ type: "requestUserInfo" }, "*");
+      }, 1000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [wixUser]);
 
   // Add debugging for button state
   console.log("Cart page state:", { wixUser, items: items.length, checkingOut });
@@ -96,7 +111,21 @@ export default function CartPage() {
   return (
     <div className="max-w-5xl mx-auto py-8 px-2 md:px-4 flex flex-col md:flex-row gap-8">
       <div className="flex-1 min-w-0">
-        <h1 className="text-3xl font-bold mb-6">Your Cart</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Your Cart</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              console.log("Manual user info request");
+              if (typeof window !== "undefined" && window.parent) {
+                window.parent.postMessage({ type: "requestUserInfo" }, "*");
+              }
+            }}
+          >
+            Request User Info
+          </Button>
+        </div>
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Image src="/placeholder.svg" alt="Empty cart" width={120} height={120} className="mb-6 opacity-60" />
@@ -192,7 +221,7 @@ export default function CartPage() {
             >
               {checkingOut ? "Processing..." : "Checkout"}
             </Button>
-            
+
             {/* Debug info - remove this in production */}
             <div className="mt-2 text-xs text-gray-500">
               Debug: Items: {items.length} | User: {wixUser ? 'Loaded' : 'Not loaded'} | CheckingOut: {checkingOut ? 'Yes' : 'No'}
