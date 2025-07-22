@@ -20,7 +20,9 @@ export default function CartPage() {
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
+      console.log("Cart page received message:", event.data);
       if (event.data?.type === "userInfo") {
+        console.log("Setting wixUser:", event.data);
         setWixUser({
           email: event.data.email,
           id: event.data.id
@@ -31,8 +33,23 @@ export default function CartPage() {
       }
     }
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [clearCart]);
+    
+    // Request user info if not received within 2 seconds
+    const timeout = setTimeout(() => {
+      if (!wixUser && typeof window !== "undefined" && window.parent) {
+        console.log("Requesting user info from parent...");
+        window.parent.postMessage({ type: "requestUserInfo" }, "*");
+      }
+    }, 2000);
+    
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      clearTimeout(timeout);
+    };
+  }, [clearCart, wixUser]);
+
+  // Add debugging for button state
+  console.log("Cart page state:", { wixUser, items: items.length, checkingOut });
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 50 ? 0 : 5.99;
@@ -175,6 +192,11 @@ export default function CartPage() {
             >
               {checkingOut ? "Processing..." : "Checkout"}
             </Button>
+            
+            {/* Debug info - remove this in production */}
+            <div className="mt-2 text-xs text-gray-500">
+              Debug: Items: {items.length} | User: {wixUser ? 'Loaded' : 'Not loaded'} | CheckingOut: {checkingOut ? 'Yes' : 'No'}
+            </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" className="w-full mt-2" disabled={items.length === 0 || clearing} aria-label="Clear Cart">{clearing ? "Clearing..." : "Clear Cart"}</Button>
