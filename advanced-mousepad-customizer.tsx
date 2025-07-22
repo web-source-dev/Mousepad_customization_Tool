@@ -19,6 +19,7 @@ import {
   Star,
   Heart,
   RotateCcw,
+  Target,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -450,9 +451,19 @@ export default function AdvancedMousepadCustomizer() {
         <div className="bg-white shadow-sm border-b">
           <div className="mx-auto max-w-7xl px-4 py-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Mousepad Studio Pro</h1>
-                <p className="text-sm text-gray-600">Professional mousepad customization tool</p>
+              <div className="flex items-center gap-8">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Mousepad Studio Pro</h1>
+                  <p className="text-sm text-gray-600">Professional mousepad customization tool</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Button variant="ghost" asChild>
+                    <a href="/playmat-customizer" className="flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Playmat Customizer
+                    </a>
+                  </Button>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {/* Toggle Help Mode Button */}
