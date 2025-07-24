@@ -180,7 +180,7 @@ const TEMPLATES: Template[] = [
   },
 ]
 
-const CATEGORIES = ["All", "Gaming"]
+
 
 interface TemplateGalleryProps {
   onSelectTemplate: (template: Template) => void
@@ -197,12 +197,9 @@ export function TemplateGallery({
   horizontal, 
   cardSize = 'normal' 
 }: TemplateGalleryProps) {
-  const [selectedCategory, setSelectedCategory] = useState("All")
   const [processedOverlays, setProcessedOverlays] = useState<Record<string, string>>({})
 
-  const filteredTemplates = TEMPLATES.filter(
-    (template) => selectedCategory === "All" || template.category === selectedCategory,
-  )
+  const filteredTemplates = TEMPLATES
 
   const handleTemplateClick = async (template: Template) => {
     if (selectedTemplateId === template.id) {
@@ -240,18 +237,6 @@ export function TemplateGallery({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {CATEGORIES.map((category) => (
-          <Button
-            key={category}
-            variant={selectedCategory === category ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedCategory(category)}
-          >
-            {category}
-          </Button>
-        ))}
-      </div>
 
       {horizontal ? (
         <div className="flex gap-4 overflow-x-auto pb-2">
