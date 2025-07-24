@@ -68,6 +68,46 @@
   }
 }
 
+@layer utilities {
+  /* Custom gradient classes */
+  .bg-gradient-custom {
+    background: linear-gradient(135deg, #000010 0%, #1b76ab 100%);
+  }
+  
+  .bg-gradient-custom-horizontal {
+    background: linear-gradient(90deg, #000010 0%, #1b76ab 100%);
+  }
+  
+  .bg-gradient-custom-vertical {
+    background: linear-gradient(180deg, #000010 0%, #1b76ab 100%);
+  }
+  
+  .bg-gradient-custom-radial {
+    background: radial-gradient(circle, #1b76ab 0%, #000010 100%);
+  }
+  
+  .bg-gradient-custom-diagonal {
+    background: linear-gradient(45deg, #000010 0%, #1b76ab 50%, #000010 100%);
+  }
+  
+  .bg-gradient-custom-reverse {
+    background: linear-gradient(135deg, #1b76ab 0%, #000010 100%);
+  }
+  
+  /* Text colors that work well with the gradient background */
+  .text-gradient-light {
+    color: #ffffff;
+  }
+  
+  .text-gradient-muted {
+    color: #e5e7eb;
+  }
+  
+  .text-gradient-accent {
+    color: #60a5fa;
+  }
+}
+
 /* Custom styles for curved text */
 .curved-text {
   transform-origin: center;

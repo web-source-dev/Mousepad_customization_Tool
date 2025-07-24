@@ -28,8 +28,19 @@ export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
           <div className="space-y-4">
             {items.map((item) => (
               <div key={item.id} className="flex gap-3 items-center border-b pb-3 last:border-b-0">
-                <div className="w-14 h-14 relative flex-shrink-0">
-                  <Image src={item.image} alt={item.name} fill className="object-cover rounded" />
+                <div className="w-14 h-14 relative flex-shrink-0 overflow-hidden rounded border bg-white">
+                  <Image 
+                    src={item.image} 
+                    alt={item.name} 
+                    fill 
+                    className="object-contain" 
+                    style={{
+                      padding: '1px',
+                      backgroundColor: 'transparent',
+                      objectFit: 'contain'
+                    }}
+                    unoptimized
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{item.name}</div>

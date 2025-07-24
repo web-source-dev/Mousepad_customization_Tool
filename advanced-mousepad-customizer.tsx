@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Progress } from "@/components/ui/progress"
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 
 import { ImageEditor } from "./components/image-editor"
 import { TemplateGallery } from "./components/template-gallery"
@@ -41,19 +42,68 @@ import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/components/ui/cart-context";
 import { SideCart } from "@/components/ui/side-cart";
 
+// Import html2canvas for capturing designs
+declare function html2canvas(element: HTMLElement, options?: any): Promise<HTMLCanvasElement>;
+
+// Add index signatures to PRICING_TABLE types for string keys
+const PRICING_TABLE: Record<string, Record<string, Record<string, number>>> = {
+  USD: {
+    '200x240': { '3mm': 33, '4mm': 38, '5mm': 40 },
+    '300x350': { '3mm': 44, '4mm': 49, '5mm': 51 },
+    '300x600': { '3mm': 52, '4mm': 57, '5mm': 59 },
+    '300x700': { '3mm': 53, '4mm': 60, '5mm': 62 },
+    '300x800': { '3mm': 57, '4mm': 64, '5mm': 66 },
+    '350x600': { '3mm': 53, '4mm': 58, '5mm': 60 },
+    '400x600': { '3mm': 70, '4mm': 77, '5mm': 79 },
+    '400x700': { '3mm': 71, '4mm': 78, '5mm': 80 },
+    '400x800': { '3mm': 71, '4mm': 80, '5mm': 82 },
+    '400x900': { '3mm': 75, '4mm': 84, '5mm': 86 },
+    '500x800': { '3mm': 79, '4mm': 85, '5mm': 90 },
+    '500x1000': { '3mm': 93, '4mm': 102, '5mm': 104 },
+  },
+  SGD: {
+    '200x240': { '3mm': 44, '4mm': 50, '5mm': 53 },
+    '300x350': { '3mm': 59, '4mm': 66, '5mm': 69 },
+    '300x600': { '3mm': 70, '4mm': 77, '5mm': 80 },
+    '300x700': { '3mm': 72, '4mm': 81, '5mm': 84 },
+    '300x800': { '3mm': 77, '4mm': 86, '5mm': 89 },
+    '350x600': { '3mm': 72, '4mm': 79, '5mm': 82 },
+    '400x600': { '3mm': 95, '4mm': 104, '5mm': 107 },
+    '400x700': { '3mm': 96, '4mm': 106, '5mm': 109 },
+    '400x800': { '3mm': 96, '4mm': 109, '5mm': 112 },
+    '400x900': { '3mm': 101, '4mm': 113, '5mm': 116 },
+    '500x800': { '3mm': 106, '4mm': 114, '5mm': 120 },
+    '500x1000': { '3mm': 125, '4mm': 137, '5mm': 140 },
+  },
+};
+
 const MOUSEPAD_SIZES = {
-  small: { label: "Small (250×210mm)", width: 250, height: 210, description: "Perfect for compact setups" },
-  medium: { label: "Medium (350×300mm)", width: 350, height: 300, description: "Most popular choice" },
-  large: { label: "Large (450×400mm)", width: 450, height: 400, description: "Maximum gaming space" },
-  xl: { label: "XL (900×400mm)", width: 900, height: 400, description: "Extended desk mat" },
-}
+  '200x240': { label: '200×240mm', width: 240, height: 200 },
+  '300x350': { label: '300×350mm', width: 350, height: 300 },
+  '300x600': { label: '300×600mm', width: 600, height: 300 },
+  '300x700': { label: '300×700mm', width: 700, height: 300 },
+  '300x800': { label: '300×800mm', width: 800, height: 300 },
+  '350x600': { label: '350×600mm', width: 600, height: 350 },
+  '400x600': { label: '400×600mm', width: 600, height: 400 },
+  '400x700': { label: '400×700mm', width: 700, height: 400 },
+  '400x800': { label: '400×800mm', width: 800, height: 400 },
+  '400x900': { label: '400×900mm', width: 900, height: 400 },
+  '500x800': { label: '500×800mm', width: 800, height: 500 },
+  '500x1000': { label: '500×1000mm', width: 1000, height: 500 },
+};
+
+const BUTTON_FONT_SIZE_BY_SIZE = {
+  small: "text-xs",
+  medium: "text-sm",
+  large: "text-base",
+  xl: "text-lg",
+};
 
 const THICKNESS_OPTIONS = [
-  { value: "2mm", label: "2mm", description: "Ultra-thin, portable" },
-  { value: "3mm", label: "3mm", description: "Standard comfort" },
-  { value: "4mm", label: "4mm", description: "Premium cushioning" },
-  { value: "5mm", label: "5mm", description: "Maximum comfort" },
-]
+  { value: '3mm', label: '3mm', description: 'Standard comfort' },
+  { value: '4mm', label: '4mm', description: 'Premium cushioning' },
+  { value: '5mm', label: '5mm', description: 'Maximum comfort' },
+];
 
 const SURFACE_TEXTURES = [
   { value: "smooth", label: "Smooth", description: "Fast gliding, precision gaming" },
@@ -71,8 +121,6 @@ const RGB_MODES = [
 // Tab order and labels (move to top-level)
 const TAB_ORDER = [
   { value: "design", label: "Design" },
-  { value: "text", label: "Text" },
-  { value: "rgb", label: "RGB" },
   { value: "order", label: "Order" },
 ];
 
@@ -87,7 +135,8 @@ const RGB_MODE_DESCRIPTIONS: Record<string, string> = {
 export default function AdvancedMousepadCustomizer() {
   // Core settings
   const [mousepadType, setMousepadType] = useState("normal")
-  const [mousepadSize, setMousepadSize] = useState("medium")
+  // Set a valid default value for mousepadSize
+  const [mousepadSize, setMousepadSize] = useState<keyof typeof MOUSEPAD_SIZES>('300x350');
   const [thickness, setThickness] = useState("3mm")
   const [surfaceTexture, setSurfaceTexture] = useState("smooth")
   const [edgeStitching, setEdgeStitching] = useState(false)
@@ -138,9 +187,400 @@ export default function AdvancedMousepadCustomizer() {
   const [designProgress, setDesignProgress] = useState(25)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadMoreRef = useRef<HTMLInputElement>(null)
+  
+    // Function to capture the complete customized design
+  const captureCompleteDesign = async () => {
+    try {
+      // Always use canvas method for guaranteed text and RGB capture
+      const baseImage = editedImage || uploadedImage;
+      if (baseImage) {
+        console.log('Using canvas method to ensure text and RGB capture');
+        return await createCanvasWithText(baseImage, textElements);
+      }
+      
+      // Fallback to html2canvas if no base image
+      if (typeof html2canvas === 'undefined') {
+        console.warn('html2canvas not available, using placeholder');
+        return "/placeholder.svg";
+      }
+      
+      // Find the preview container that includes everything
+      const previewContainer = document.querySelector('[data-preview-container]');
+      if (!previewContainer) {
+        console.warn('Preview container not found, using placeholder');
+        return "/placeholder.svg";
+      }
+      
+      // Wait a bit for any animations to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Use html2canvas to capture the entire preview with all customizations
+      const canvas = await html2canvas(previewContainer as HTMLElement, {
+        backgroundColor: null,
+        scale: 3, // Very high quality for better detail
+        useCORS: true,
+        allowTaint: true,
+        width: previewContainer.clientWidth,
+        height: previewContainer.clientHeight,
+        logging: true, // Enable logging for debugging
+        removeContainer: false,
+        foreignObjectRendering: true,
+        imageTimeout: 15000,
+        onclone: (clonedDoc: Document) => {
+          // Ensure all text elements are visible in the cloned document
+          const clonedContainer = clonedDoc.querySelector('[data-preview-container]');
+          if (clonedContainer) {
+            // Make sure all text elements are properly positioned and visible
+            const textElements = clonedContainer.querySelectorAll('[data-text-element]');
+            textElements.forEach((element: any) => {
+              element.style.zIndex = '1000';
+              element.style.pointerEvents = 'none';
+              element.style.display = 'block';
+              element.style.visibility = 'visible';
+              element.style.opacity = '1';
+            });
+            
+            // Also ensure the container itself is properly styled
+            (clonedContainer as HTMLElement).style.overflow = 'visible';
+            (clonedContainer as HTMLElement).style.position = 'relative';
+          }
+        }
+      });
+      
+      return canvas.toDataURL('image/png', 1.0);
+    } catch (error) {
+      console.error('Error capturing complete design:', error);
+      // Final fallback to base image
+      return editedImage || uploadedImage || "/placeholder.svg";
+    }
+  }
+  
+  // Enhanced method to create canvas with text, RGB overlays, and template overlays
+  const createCanvasWithText = async (baseImage: string, textElements: any[]): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new window.Image();
+      
+      img.onload = () => {
+        // Set canvas size to match image dimensions
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        console.log('Canvas size:', canvas.width, 'x', canvas.height);
+        console.log('Text elements to render:', textElements.length);
+        console.log('RGB mode:', mousepadType, rgbMode, rgbColor, rgbBrightness);
+        
+        // Ensure minimum size for visibility
+        const minSize = 200;
+        if (canvas.width < minSize || canvas.height < minSize) {
+          const scale = Math.max(minSize / canvas.width, minSize / canvas.height);
+          canvas.width = Math.round(canvas.width * scale);
+          canvas.height = Math.round(canvas.height * scale);
+          console.log('Scaled canvas size:', canvas.width, 'x', canvas.height);
+        }
+        
+        // Draw base image (scaled if necessary)
+        if (ctx) {
+          if (canvas.width === img.width && canvas.height === img.height) {
+            // No scaling needed
+            ctx.drawImage(img, 0, 0);
+          } else {
+            // Scale the image to fit the canvas
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          }
+        }
+        
+        // Draw template overlays function
+        const drawOverlays = async () => {
+          if (appliedOverlays.length > 0) {
+            console.log('Drawing overlays:', appliedOverlays.length);
+            console.log('Overlay URLs:', appliedOverlays);
+            
+            for (let i = 0; i < appliedOverlays.length; i++) {
+              const overlayUrl = appliedOverlays[i];
+              try {
+                const overlayImg = new window.Image();
+                overlayImg.crossOrigin = 'anonymous';
+                
+                await new Promise((resolve, reject) => {
+                  overlayImg.onload = resolve;
+                  overlayImg.onerror = reject;
+                  overlayImg.src = overlayUrl;
+                });
+                
+                if (ctx) {
+                  // Draw overlay to cover the entire canvas area
+                  ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+                  console.log(`Overlay ${i + 1} drawn successfully from:`, overlayUrl);
+                  console.log(`Overlay dimensions: ${overlayImg.width}x${overlayImg.height}, Canvas: ${canvas.width}x${canvas.height}`);
+                }
+              } catch (error) {
+                console.warn(`Failed to draw overlay ${i + 1}:`, error);
+                console.warn('Overlay URL was:', overlayUrl);
+              }
+            }
+          } else {
+            console.log('No overlays to draw');
+          }
+        };
+        
+        // Add RGB glow effect if RGB mode is active
+        if (mousepadType === 'rgb' && ctx) {
+          console.log('Adding RGB glow effect');
+          console.log('RGB Mode:', rgbMode);
+          console.log('RGB Color:', rgbColor);
+          console.log('RGB Brightness:', rgbBrightness);
+          
+          // Create a more elegant RGB effect
+          const glowColor = rgbMode === 'rainbow' ? null : rgbColor; // Don't use red for rainbow
+          const glowIntensity = rgbBrightness / 100;
+          
+          console.log('Using glow color:', glowColor);
+          console.log('Glow intensity:', glowIntensity);
+          
+          // Draw RGB border glow with elegant design
+          ctx.save();
+          
+          // Ensure the color is valid
+          if (rgbMode === 'rainbow') {
+            // Rainbow mode will be handled separately
+            ctx.fillStyle = '#ff0000'; // Default for non-rainbow parts
+          } else if (!glowColor || glowColor === 'undefined' || glowColor === 'null') {
+            console.warn('Invalid RGB color, using default red');
+            ctx.fillStyle = '#ff0000';
+          } else {
+            ctx.fillStyle = glowColor;
+          }
+          
+          // Outer glow layer - thinner and more elegant
+          ctx.globalAlpha = Math.max(glowIntensity * 0.5, 0.15); // Reduced opacity for elegance
+          const outerBorderWidth = Math.max(canvas.width, canvas.height) * 0.015; // Even thinner border
+          const borderCornerRadius = Math.min(canvas.width, canvas.height) * 0.05;
+          
+          // Top border
+          ctx.fillRect(borderCornerRadius, 0, canvas.width - borderCornerRadius * 2, outerBorderWidth);
+          // Bottom border
+          ctx.fillRect(borderCornerRadius, canvas.height - outerBorderWidth, canvas.width - borderCornerRadius * 2, outerBorderWidth);
+          // Left border
+          ctx.fillRect(0, borderCornerRadius, outerBorderWidth, canvas.height - borderCornerRadius * 2);
+          // Right border
+          ctx.fillRect(canvas.width - outerBorderWidth, borderCornerRadius, outerBorderWidth, canvas.height - borderCornerRadius * 2);
+          
+          // Inner glow layer - removed for cleaner look
+          // ctx.globalAlpha = Math.max(glowIntensity * 0.3, 0.1); // Reduced opacity
+          // const innerBorderWidth = Math.max(canvas.width, canvas.height) * 0.01; // Much thinner inner border
+          // ctx.fillRect(outerBorderWidth, outerBorderWidth, canvas.width - 2 * outerBorderWidth, innerBorderWidth); // Top inner
+          // ctx.fillRect(outerBorderWidth, canvas.height - outerBorderWidth - innerBorderWidth, canvas.width - 2 * outerBorderWidth, innerBorderWidth); // Bottom inner
+          // ctx.fillRect(outerBorderWidth, outerBorderWidth, innerBorderWidth, canvas.height - 2 * outerBorderWidth); // Left inner
+          // ctx.fillRect(canvas.width - outerBorderWidth - innerBorderWidth, outerBorderWidth, innerBorderWidth, canvas.height - 2 * outerBorderWidth); // Right inner
+          
+          ctx.restore();
+          
+          // Add corner glow effects (outer only, no inner circles)
+          ctx.save();
+          
+          // Corner circles with subtle glow
+          const cornerRadius = Math.min(canvas.width, canvas.height) * 0.05; // Even smaller corners
+          
+          // Outer corner glow - subtle and elegant
+          ctx.globalAlpha = Math.max(glowIntensity * 0.3, 0.15); // Reduced opacity
+          if (rgbMode === 'rainbow') {
+            // Use different rainbow colors for each corner
+            const rainbowColors = ['#ff0000', '#00ff00', '#0080ff', '#ff0080'];
+            ctx.fillStyle = rainbowColors[0]; // Will be set per corner
+          } else {
+            ctx.fillStyle = glowColor || '#ff0000';
+          }
+          
+          // Top-left corner
+          if (rgbMode === 'rainbow') {
+            ctx.fillStyle = '#ff0000'; // Red
+          }
+          ctx.beginPath();
+          ctx.arc(cornerRadius, cornerRadius, cornerRadius, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Top-right corner
+          if (rgbMode === 'rainbow') {
+            ctx.fillStyle = '#00ff00'; // Green
+          }
+          ctx.beginPath();
+          ctx.arc(canvas.width - cornerRadius, cornerRadius, cornerRadius, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Bottom-left corner
+          if (rgbMode === 'rainbow') {
+            ctx.fillStyle = '#0080ff'; // Blue
+          }
+          ctx.beginPath();
+          ctx.arc(cornerRadius, canvas.height - cornerRadius, cornerRadius, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Bottom-right corner
+          if (rgbMode === 'rainbow') {
+            ctx.fillStyle = '#ff0080'; // Pink
+          }
+          ctx.beginPath();
+          ctx.arc(canvas.width - cornerRadius, canvas.height - cornerRadius, cornerRadius, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          ctx.restore();
+          
+          // Add rainbow effects for rainbow mode
+          if (rgbMode === 'rainbow') {
+            ctx.save();
+            
+            // Create rainbow border effect
+            const borderWidth = Math.max(canvas.width, canvas.height) * 0.015; // Thin rainbow border
+            const colors = ['#ff0000', '#ff8000', '#ffff00', '#00ff00', '#0080ff', '#8000ff', '#ff0080'];
+            
+            // Draw rainbow border segments
+            for (let i = 0; i < colors.length; i++) {
+              ctx.globalAlpha = Math.max(glowIntensity * 0.3, 0.12);
+              ctx.fillStyle = colors[i];
+              
+              const segmentWidth = (canvas.width * 2 + canvas.height * 2) / colors.length;
+              const startPos = i * segmentWidth;
+              
+              // Top border
+              if (startPos < canvas.width) {
+                const x = startPos;
+                const w = Math.min(segmentWidth, canvas.width - x);
+                ctx.fillRect(x, 0, w, borderWidth);
+              }
+              // Right border
+              else if (startPos < canvas.width + canvas.height) {
+                const y = startPos - canvas.width;
+                const h = Math.min(segmentWidth, canvas.height - y);
+                ctx.fillRect(canvas.width - borderWidth, y, borderWidth, h);
+              }
+              // Bottom border
+              else if (startPos < canvas.width * 2 + canvas.height) {
+                const x = canvas.width - (startPos - (canvas.width + canvas.height));
+                const w = Math.min(segmentWidth, x);
+                ctx.fillRect(Math.max(0, x - w), canvas.height - borderWidth, w, borderWidth);
+              }
+              // Left border
+              else {
+                const y = canvas.height - (startPos - (canvas.width * 2 + canvas.height));
+                const h = Math.min(segmentWidth, y);
+                ctx.fillRect(0, Math.max(0, y - h), borderWidth, h);
+              }
+            }
+            
+            ctx.restore();
+          }
+          
+          // Add center glow effect for static colors to make them more visible
+          if (rgbMode === 'static' && glowColor && glowColor !== '#ff0000') {
+            ctx.save();
+            ctx.globalAlpha = Math.max(glowIntensity * 0.3, 0.2);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const maxRadius = Math.min(canvas.width, canvas.height) * 0.25;
+            
+            // Create a subtle center glow
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
+            gradient.addColorStop(0, glowColor);
+            gradient.addColorStop(0.7, glowColor + '80'); // 50% opacity
+            gradient.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, maxRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.restore();
+          }
+        }
+        
+        // Draw text overlays with all customization details
+        textElements.forEach((element, index) => {
+          if (ctx && element.type === 'text') {
+            console.log(`Rendering text element ${index}:`, element.text, 'at position:', element.position);
+            
+            // Set font with proper weight and larger size for better visibility
+            const fontWeight = element.font === "Orbitron" || element.font === "Audiowide" ? "bold" : "normal";
+            const fontSize = Math.max(element.size * 1.5, 18); // Increase size by 50% and minimum 18px
+            ctx.font = `${fontWeight} ${fontSize}px ${element.font}`;
+            
+            // Handle gradient text
+            if (element.gradient?.enabled) {
+              const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+              gradient.addColorStop(0, element.gradient.from);
+              gradient.addColorStop(1, element.gradient.to);
+              ctx.fillStyle = gradient;
+            } else {
+              ctx.fillStyle = element.color || '#000000';
+            }
+            
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Calculate position
+            const x = (element.position.x / 100) * canvas.width;
+            const y = (element.position.y / 100) * canvas.height;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate((element.rotation * Math.PI) / 180);
+            
+            // Apply opacity
+            ctx.globalAlpha = (element.opacity || 100) / 100;
+            
+            // Draw text shadow if enabled
+            if (element.shadow?.enabled) {
+              ctx.shadowColor = element.shadow.color || '#000000';
+              ctx.shadowBlur = element.shadow.blur || 0;
+              ctx.shadowOffsetX = element.shadow.x || 0;
+              ctx.shadowOffsetY = element.shadow.y || 0;
+            }
+            
+            // Draw text outline if enabled
+            if (element.outline?.enabled) {
+              ctx.strokeStyle = element.outline.color || '#ffffff';
+              ctx.lineWidth = element.outline.width || 1;
+              ctx.strokeText(element.text, 0, 0);
+            }
+            
+            // Draw the main text
+            ctx.fillText(element.text, 0, 0);
+            ctx.restore();
+            
+            console.log(`Text element ${index} rendered successfully`);
+          }
+        });
+        
+        // Draw overlays LAST to ensure they're on top
+        drawOverlays().then(() => {
+          console.log('Canvas rendering completed');
+          resolve(canvas.toDataURL('image/png', 1.0));
+        }).catch((error) => {
+          console.error('Error drawing overlays:', error);
+          console.log('Canvas rendering completed (without overlays)');
+          resolve(canvas.toDataURL('image/png', 1.0));
+        });
+      };
+      
+      img.onerror = (error) => {
+        console.error('Error loading base image:', error);
+        reject(error);
+      };
+      
+      img.src = baseImage;
+    });
+  };
   const { addItem, items } = useCart();
   const [sideCartOpen, setSideCartOpen] = useState(false);
   const { toast } = useToast();
+  const [appliedOverlays, setAppliedOverlays] = useState<string[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<{ id: number; overlay: string } | null>(null);
+
+  // Add a new state to track the main image source (uploaded or template)
+  const [mainImage, setMainImage] = useState<string | null>(null)
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -163,13 +603,18 @@ export default function AdvancedMousepadCustomizer() {
           setEdgeStitching(last.settings?.edgeStitching || false);
           setRgbMode(last.settings?.rgbMode || "static");
           setRgbColor(last.settings?.rgbColor || "#ff0000");
+          setSelectedTemplate(last.settings?.selectedTemplate || null);
+          if (last.settings?.selectedTemplate) {
+            setAppliedOverlays([last.settings.selectedTemplate.overlay]);
+          }
           setDesignProgress(100);
         }
-      } catch {}
+      } catch { }
     }
     setHasMounted(true);
   }, []);
 
+  // Update handleImageUpload to set mainImage and clear template selection
   const handleImageUpload = useCallback((files: FileList | File[]) => {
     const fileArr = Array.from(files)
     const validImages = fileArr.filter((file) => file.type.startsWith("image/"))
@@ -187,14 +632,30 @@ export default function AdvancedMousepadCustomizer() {
             const all = [...prev, ...loadedImages]
             setUploadedImage(all[0])
             setEditedImage(all[0])
+            setMainImage(all[0]) // Set main image to uploaded
+            setAppliedOverlays([]) // Clear overlays/templates
+            setSelectedTemplate(null) // Clear selected template
             return all
           })
-        setDesignProgress((prev) => Math.min(prev + 25, 100))
+          setDesignProgress((prev) => Math.min(prev + 25, 100))
+        }
       }
-    }
       reader.readAsDataURL(file)
     })
   }, [])
+
+  // Update template selection to set mainImage and clear uploaded image
+  const handleSelectTemplate = (template: { id: number; overlay: string }) => {
+    // Set the selected template and add its overlay
+    setSelectedTemplate(template)
+    setAppliedOverlays([template.overlay])
+  }
+
+  const handleRemoveTemplate = () => {
+    // Remove the selected template and its overlay
+    setSelectedTemplate(null)
+    setAppliedOverlays([])
+  }
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -223,6 +684,8 @@ export default function AdvancedMousepadCustomizer() {
       const files = e.target.files
       if (files && files.length > 0) {
         handleImageUpload(files)
+        // Reset file input so user can upload the same file again
+        e.target.value = ''
       }
     },
     [handleImageUpload],
@@ -240,6 +703,8 @@ export default function AdvancedMousepadCustomizer() {
     setUploadedImage(null)
     setEditedImage(null)
     setUploadedImages([])
+    setSelectedTemplate(null) // Clear selected template
+    setAppliedOverlays([]) // Clear overlays
     setDesignProgress((prev) => Math.max(prev - 25, 0))
     // Clear saved designs from localStorage
     localStorage.removeItem('mousepadDesigns');
@@ -259,6 +724,7 @@ export default function AdvancedMousepadCustomizer() {
         edgeStitching,
         rgbMode,
         rgbColor,
+        selectedTemplate,
       },
       createdAt: new Date().toISOString(),
     }
@@ -407,48 +873,25 @@ export default function AdvancedMousepadCustomizer() {
     })
   }
 
-  const currentSize = MOUSEPAD_SIZES[mousepadSize as keyof typeof MOUSEPAD_SIZES]
+  // Always get a valid size or fallback
+  const currentSize = MOUSEPAD_SIZES[mousepadSize] || { width: 350, height: 300, label: 'Default' };
 
   // Price calculation logic (copied from PriceCalculator)
   function getMousepadPrice() {
-    const PRICING = {
-      base: {
-        small: 19.99,
-        medium: 24.99,
-        large: 29.99,
-      },
-      type: {
-        normal: 0,
-        rgb: 15.0,
-      },
-      thickness: {
-        "2mm": 0,
-        "3mm": 2.0,
-        "4mm": 4.0,
-      },
-      surface: {
-        smooth: 0,
-        textured: 3.0,
-        premium: 8.0,
-      },
-      edgeStitching: 5.0,
-    };
-    const basePrice = PRICING.base[mousepadSize as keyof typeof PRICING.base] || 24.99;
-    const typePrice = PRICING.type[mousepadType as keyof typeof PRICING.type] || 0;
-    const thicknessPrice = PRICING.thickness[thickness as keyof typeof PRICING.thickness] || 0;
-    const surfacePrice = PRICING.surface[surfaceTexture as keyof typeof PRICING.surface] || 0;
-    const stitchingPrice = edgeStitching ? PRICING.edgeStitching : 0;
-    let subtotal = (basePrice + typePrice + thicknessPrice + surfacePrice + stitchingPrice) * quantity;
+    const basePrice = PRICING_TABLE[currency][String(mousepadSize)]?.[String(thickness)] || 0;
+    let subtotal = basePrice * quantity;
     if (quantity > 1) subtotal = subtotal * 0.9; // 10% bulk discount
     return subtotal;
   }
 
+  const [currency, setCurrency] = useState<'USD' | 'SGD'>('USD');
+
   if (!hasMounted) return null;
   return (
     <TooltipProvider delayDuration={2000}>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen">
         {/* Header */}
-        <div className="bg-white shadow-sm border-b">
+        <div className="bg-white/90 backdrop-blur-sm shadow-sm border-b">
           <div className="mx-auto max-w-7xl px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-8">
@@ -458,18 +901,15 @@ export default function AdvancedMousepadCustomizer() {
                 </div>
                 <div className="flex items-center gap-4">
                   <Button variant="ghost" asChild>
-                    <a href="/playmat-customizer" className="flex items-center gap-2">
-                      <Target className="h-4 w-4" />
-                      Playmat Customizer
-                    </a>
+
                   </Button>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 {/* Toggle Help Mode Button */}
                 {showHelp ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button variant="outline" size="sm" onClick={() => setShowHelp(!showHelp)}>
                         <HelpCircle className="h-4 w-4 text-blue-600" />
                       </Button>
@@ -477,8 +917,8 @@ export default function AdvancedMousepadCustomizer() {
                     <TooltipContent>Help mode is ON. Click to turn off.</TooltipContent>
                   </Tooltip>
                 ) : (
-                    <Button variant="outline" size="sm" onClick={() => setShowHelp(!showHelp)}>
-                      <HelpCircle className="h-4 w-4" />
+                  <Button variant="outline" size="sm" onClick={() => setShowHelp(!showHelp)}>
+                    <HelpCircle className="h-4 w-4" />
                   </Button>
                 )}
                 {/* Save and Reset Buttons */}
@@ -488,10 +928,10 @@ export default function AdvancedMousepadCustomizer() {
                       <Button onClick={saveDesign} className="flex items-center gap-2 px-3 py-1 text-xs" size="sm">
                         <Save className="h-4 w-4" />
                         Save
-                    </Button>
-                  </TooltipTrigger>
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent>Save your current design to local storage</TooltipContent>
-                </Tooltip>
+                  </Tooltip>
                 ) : (
                   <Button onClick={saveDesign} className="flex items-center gap-2 px-3 py-1 text-xs" size="sm">
                     <Save className="h-4 w-4" />
@@ -527,6 +967,17 @@ export default function AdvancedMousepadCustomizer() {
                     </span>
                   )}
                 </button>
+                {/* Currency Selector */}
+                <div className="flex items-center gap-2">
+                  <Label>Currency:</Label>
+                  <Select value={currency} onValueChange={(value) => setCurrency(value as 'USD' | 'SGD')}>
+                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="SGD">SGD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
@@ -548,13 +999,13 @@ export default function AdvancedMousepadCustomizer() {
                         {showHelp ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                          <Button
-                            variant={previewMode === "normal" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setPreviewMode("normal")}
-                          >
-                            Normal
-                          </Button>
+                              <Button
+                                variant={previewMode === "normal" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setPreviewMode("normal")}
+                              >
+                                Normal
+                              </Button>
                             </TooltipTrigger>
                             <TooltipContent>Switch to normal preview mode</TooltipContent>
                           </Tooltip>
@@ -570,13 +1021,13 @@ export default function AdvancedMousepadCustomizer() {
                         {showHelp ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                          <Button
-                            variant={previewMode === "dark" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setPreviewMode("dark")}
-                          >
-                            Dark
-                          </Button>
+                              <Button
+                                variant={previewMode === "dark" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setPreviewMode("dark")}
+                              >
+                                Dark
+                              </Button>
                             </TooltipTrigger>
                             <TooltipContent>Switch to dark preview mode</TooltipContent>
                           </Tooltip>
@@ -597,12 +1048,12 @@ export default function AdvancedMousepadCustomizer() {
                       <div className="relative">
                         {/* Mousepad Base with RGB Effect */}
                         <div
-                          className={`relative rounded-xl shadow-2xl transition-all duration-500 ${
-                            mousepadType === "rgb" ? "shadow-lg" : "shadow-gray-300"
-                          } ${isDragOver ? 'ring-4 ring-blue-400 ring-offset-2' : ''}`}
+                          data-preview-container
+                          className={`relative rounded-xl shadow-2xl transition-all duration-500 ${mousepadType === "rgb" ? "shadow-lg" : "shadow-gray-300"
+                            } ${isDragOver ? 'ring-4 ring-blue-400 ring-offset-2' : ''} z-0`}
                           style={{
-                            width: Math.min(500, currentSize.width * 0.8),
-                            height: Math.min(400, currentSize.height * 0.8),
+                            width: Math.min(500, currentSize.width * 0.85),
+                            height: Math.min(400, currentSize.height * 0.85),
                             aspectRatio: `${currentSize.width}/${currentSize.height}`,
                           }}
                           onDrop={(e) => {
@@ -638,34 +1089,52 @@ export default function AdvancedMousepadCustomizer() {
 
                           {/* Mousepad Surface */}
                           <div
-                            className={`relative h-full w-full overflow-hidden rounded-xl ${
-                              edgeStitching ? "border-2 border-orange-400" : ""
-                            }`}
+                            className={`relative h-full w-full overflow-hidden rounded-xl ${edgeStitching ? "border-2 border-orange-400" : ""
+                              }`}
                           >
                             <div
-                              className={`absolute inset-0 ${
-                                surfaceTexture === "textured"
+                              className={`absolute inset-0 ${surfaceTexture === "textured"
                                   ? "bg-gray-100"
                                   : surfaceTexture === "premium"
                                     ? "bg-gray-50"
                                     : "bg-white"
-                              }`}
+                                }`}
                             />
 
-                            {editedImage || uploadedImage ? (
+                            {mainImage ? (
                               <Image
-                                src={editedImage || uploadedImage || "/placeholder.svg"}
+                                src={mainImage}
                                 alt="Custom design"
                                 fill
                                 className="object-cover"
                               />
                             ) : (
-                              <div className="flex h-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                                <div className="text-center text-gray-400">
-                                  <ImageIcon className="mx-auto h-16 w-16 mb-4" />
-                                  <p className="text-lg font-medium">Your Design Here</p>
-                                  <p className="text-sm">Upload an image or choose a template</p>
-                                </div>
+                              <div className="absolute inset-0 flex items-center justify-center z-10">
+                                {currentSize.width < 600 && currentSize.height < 350 ? (
+                                  <Button
+                                    variant="default"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="px-3 py-1.5 text-xs font-medium bg-gradient-custom hover:bg-gradient-custom-reverse text-white"
+                                  >
+                                    Upload
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="default"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`w-4/5 sm:w-2/3 md:w-1/2 px-4 sm:px-8 py-3 sm:py-4 font-semibold shadow bg-gradient-custom hover:bg-gradient-custom-reverse text-white transition-all duration-200 text-base sm:text-lg`}
+                                  >
+                                    Upload Your Image
+                                  </Button>
+                                )}
+                                <input
+                                  ref={fileInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={handleFileInput}
+                                  className="hidden"
+                                />
                               </div>
                             )}
 
@@ -673,9 +1142,9 @@ export default function AdvancedMousepadCustomizer() {
                             {textElements.map((element) => (
                               <div
                                 key={element.id}
-                                className={`absolute cursor-move transition-all select-none ${
-                                  selectedTextElement === element.id ? "ring-2 ring-blue-500 ring-offset-1" : ""
-                                }`}
+                                data-text-element
+                                className={`absolute cursor-move transition-all select-none ${selectedTextElement === element.id ? "ring-2 ring-blue-500 ring-offset-1" : ""
+                                  }`}
                                 style={{
                                   left: `${element.position.x}%`,
                                   top: `${element.position.y}%`,
@@ -755,14 +1224,23 @@ export default function AdvancedMousepadCustomizer() {
                                 )}
                               </div>
                             ))}
+                            {appliedOverlays.map((overlay, idx) => (
+                              <img
+                                key={idx}
+                                src={overlay}
+                                alt={`Overlay ${idx + 1}`}
+                                className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                                style={{ zIndex: 10 + idx }}
+                              />
+                            ))}
                           </div>
 
                           {/* Thickness/Texture Indicator */}
-                          <div className="absolute -bottom-3 -right-3 bg-gray-800 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg">
+                          <div className="absolute -bottom-3 -right-3 bg-gray-800 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg z-10">
                             {thickness} • {surfaceTexture}
                           </div>
                           {/* Size Indicator (moved from header) */}
-                          <div className="absolute -bottom-3 -left-3 bg-gray-800 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg">
+                          <div className="absolute -bottom-3 -left-3 bg-gray-800 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg z-10">
                             {currentSize.label}
                           </div>
                         </div>
@@ -780,38 +1258,45 @@ export default function AdvancedMousepadCustomizer() {
                   </CardContent>
                 </Card>
                 {/* Template Gallery - moved under Live Preview */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Palette className="h-5 w-5" />
-                        Template Gallery
-                      </CardTitle>
-                    </CardHeader>
-                <CardContent className="h-full">
-                  <div className="overflow-x-auto h-full">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Palette className="h-5 w-5" />
+                      Template Gallery
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-full">
+                    <div className="overflow-x-auto h-full">
                       <TemplateGallery
-                        onSelectTemplate={(template) => {
-                          setUploadedImage(template.image)
-                          setEditedImage(template.image)
-                          setDesignProgress((prev) => Math.min(prev + 25, 100))
-                        }}
-                      horizontal
-                      cardSize="small"
+                        onSelectTemplate={handleSelectTemplate}
+                        onRemoveTemplate={handleRemoveTemplate}
+                        selectedTemplateId={selectedTemplate?.id || null}
+                        horizontal
+                        cardSize="small"
                       />
-                  </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
-              
+
             </div>
 
             {/* Right Panel - Controls */}
-            <div className="space-y-6">
+            <div className="space-y-3 sm:space-y-4">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="flex w-full gap-1">
+                <TabsList className="flex w-full gap-1 bg-white shadow-lg border rounded-lg p-1">
                   {TAB_ORDER.map(tab => (
-                    <TabsTrigger key={tab.value} value={tab.value} className="flex-1 text-xs">
+                    <TabsTrigger 
+                      key={tab.value} 
+                      value={tab.value} 
+                      className={`flex-1 text-xs font-semibold transition-all duration-200 ${
+                        tab.value === 'order' 
+                          ? 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105' 
+                          : 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white'
+                      }`}
+                    >
+                      {tab.value === 'order' && <ShoppingCart className="h-3 w-3 mr-1" />}
                       {tab.label}
                     </TabsTrigger>
                   ))}
@@ -820,141 +1305,119 @@ export default function AdvancedMousepadCustomizer() {
                   <TabsContent key={tab.value} value={tab.value} className={tab.value === 'design' ? 'space-y-4' : ''}>
                     {tab.value === 'design' && (
                       <>
-                  {/* Mousepad Type */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Mousepad Type</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <RadioGroup value={mousepadType} onValueChange={setMousepadType}>
-                        <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-gray-50">
-                          <RadioGroupItem value="normal" id="normal" />
-                          <Label htmlFor="normal" className="flex-1 cursor-pointer">
-                            <div className="font-medium">Standard Mousepad</div>
-                            <div className="text-sm text-gray-500">Classic design without lighting</div>
-                          </Label>
-                          <Badge variant="secondary">$0</Badge>
-                        </div>
-                        <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-gray-50">
-                          <RadioGroupItem value="rgb" id="rgb" />
-                          <Label htmlFor="rgb" className="flex-1 cursor-pointer">
-                            <div className="font-medium flex items-center gap-2">
-                              RGB Gaming Mousepad
-                              <Star className="h-4 w-4 text-yellow-500" />
-                            </div>
-                            <div className="text-sm text-gray-500">LED-backlit with customizable effects</div>
-                          </Label>
-                          <Badge>+$15</Badge>
-                        </div>
-                      </RadioGroup>
-                    </CardContent>
-                  </Card>
-
-                  {/* Size Selection */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Size & Dimensions</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Select value={mousepadSize} onValueChange={setMousepadSize}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(MOUSEPAD_SIZES).map(([key, size]) => (
-                            <SelectItem key={key} value={key}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{size.label}</span>
-                                <span className="text-xs text-gray-500 ml-2">{size.description}</span>
+                        {/* Mousepad Type */}
+                        <Card>
+                          <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                            <CardTitle>Mousepad Type</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-4">
+                            <RadioGroup value={mousepadType} onValueChange={setMousepadType}>
+                              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-gray-50">
+                                <RadioGroupItem value="normal" id="normal" />
+                                <Label htmlFor="normal" className="flex-1 cursor-pointer">
+                                  <div className="font-medium">Standard Mousepad</div>
+                                  <div className="text-sm text-gray-500">Classic design without lighting</div>
+                                </Label>
+                                <Badge variant="secondary">$0</Badge>
                               </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </CardContent>
-                  </Card>
-
-                  {/* Thickness */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Thickness & Comfort</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Select value={thickness} onValueChange={setThickness}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {THICKNESS_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{option.label}</span>
-                                <span className="text-xs text-gray-500 ml-2">{option.description}</span>
+                              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-gray-50">
+                                <RadioGroupItem value="rgb" id="rgb" />
+                                <Label htmlFor="rgb" className="flex-1 cursor-pointer">
+                                  <div className="font-medium flex items-center gap-2">
+                                    RGB Gaming Mousepad
+                                    <Star className="h-4 w-4 text-yellow-500" />
+                                  </div>
+                                  <div className="text-sm text-gray-500">LED-backlit with customizable effects</div>
+                                </Label>
+                                <Badge>+$15</Badge>
                               </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </CardContent>
-                  </Card>
+                            </RadioGroup>
+                          </CardContent>
+                        </Card>
 
-                  {/* Surface Texture */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Surface Texture</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Select value={surfaceTexture} onValueChange={setSurfaceTexture}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SURFACE_TEXTURES.map((texture) => (
-                            <SelectItem key={texture.value} value={texture.value}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{texture.label}</span>
-                                <span className="text-xs text-gray-500 ml-2">{texture.description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </CardContent>
-                  </Card>
+                        {/* Size Selection */}
+                        <Card>
+                          <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                            <CardTitle>Size & Dimensions</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-4">
+                            <Select value={mousepadSize} onValueChange={v => setMousepadSize(v as keyof typeof MOUSEPAD_SIZES)}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(MOUSEPAD_SIZES).map(([key, size]) => (
+                                  <SelectItem key={key} value={key}>
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{size.label}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </CardContent>
+                        </Card>
 
-                  {/* Edge Stitching */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Premium Options</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label htmlFor="stitching" className="font-medium">
-                            Edge Stitching
-                          </Label>
-                          <p className="text-sm text-gray-500">Reinforced edges for durability</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge>+$5</Badge>
-                          <Switch id="stitching" checked={edgeStitching} onCheckedChange={setEdgeStitching} />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                        {/* Thickness */}
+                        <Card>
+                          <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                            <CardTitle>Thickness & Comfort</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-4">
+                            <Select value={thickness} onValueChange={setThickness}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {THICKNESS_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{option.label}</span>
+                                      <span className="text-xs text-gray-500 ml-2">{option.description}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </CardContent>
+                        </Card>
+
+                        {/* Surface Texture */}
+                        <Card>
+                          <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                            <CardTitle>Surface Texture</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-4">
+                            <Select value={surfaceTexture} onValueChange={setSurfaceTexture}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SURFACE_TEXTURES.map((texture) => (
+                                  <SelectItem key={texture.value} value={texture.value}>
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{texture.label}</span>
+                                      <span className="text-xs text-gray-500 ml-2">{texture.description}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </CardContent>
+                        </Card>
+
                         {/* Image Upload */}
                         <Card>
-                          <CardHeader>
+                          <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
                             <CardTitle className="flex items-center gap-2">
                               <Upload className="h-5 w-5" />
                               Upload Design
                             </CardTitle>
                           </CardHeader>
-                          <CardContent>
+                          <CardContent className="p-3 sm:p-4">
                             <div
-                              className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-all ${
-                                isDragOver ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-gray-400"
-                              }`}
+                              className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-all ${isDragOver ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                                }`}
                               onDrop={handleDrop}
                               onDragOver={handleDragOver}
                               onDragLeave={handleDragLeave}
@@ -1009,11 +1472,19 @@ export default function AdvancedMousepadCustomizer() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => fileInputRef.current?.click()}
-                                      className="flex items-center gap-2 bg-transparent"
+                                      onClick={() => uploadMoreRef.current?.click()}
+                                      className="flex items-center gap-2 bg-gradient-custom hover:bg-gradient-custom-reverse text-white border-0"
                                     >
                                       Upload More
                                     </Button>
+                                    <input
+                                      ref={uploadMoreRef}
+                                      type="file"
+                                      accept="image/*"
+                                      multiple
+                                      onChange={handleFileInput}
+                                      className="hidden"
+                                    />
                                   </div>
                                 </div>
                               ) :
@@ -1023,7 +1494,7 @@ export default function AdvancedMousepadCustomizer() {
                                     <p className="font-medium">Drag & drop your images</p>
                                     <p className="text-sm text-gray-500">or click to browse</p>
                                   </div>
-                                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                  <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="bg-gradient-custom hover:bg-gradient-custom-reverse text-white border-0">
                                     Choose Files
                                   </Button>
                                   <input
@@ -1044,445 +1515,429 @@ export default function AdvancedMousepadCustomizer() {
                         </Card>
 
                         {/* Image Editor */}
-                        {uploadedImage && <ImageEditor imageUrl={uploadedImage} onImageChange={setEditedImage} />}
-                      </>
-                    )}
-                    {tab.value === 'text' && (
-                      <>
-                  {/* Add Text Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Palette className="h-5 w-5" />
-                        Add Text
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex gap-2">
-                              {showHelp ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                          <input
-                            type="text"
-                            value={textInput}
-                            onChange={(e) => setTextInput(e.target.value)}
-                            placeholder="Enter your text here..."
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                      onKeyDown={(e) => e.key === "Enter" && addTextElement()}
-                                    />
-                                  </TooltipTrigger>
-                                  <TooltipContent>Type your text and click Add to add it to the design</TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={textInput}
-                                  onChange={(e) => setTextInput(e.target.value)}
-                                  placeholder="Enter your text here..."
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  onKeyDown={(e) => e.key === "Enter" && addTextElement()}
-                                />
-                              )}
-                              {showHelp ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                          <Button onClick={addTextElement} disabled={!textInput.trim()} className="px-6">
-                            Add
-                          </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Add the text to your design</TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <Button onClick={addTextElement} disabled={!textInput.trim()} className="px-6">
-                                  Add
-                                </Button>
-                              )}
-                        </div>
-                          </CardContent>
-                        </Card>
+                        {uploadedImage && <ImageEditor imageUrl={uploadedImage} onImageChange={(img) => { setEditedImage(img); setMainImage(img); }} />}
 
-                        {/* Text Elements Management Section */}
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Text Elements</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {textElements.map((element, index) => (
-                                <div
-                                  key={element.id}
-                                  className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
-                                    selectedTextElement === element.id
-                                      ? "border-blue-500 bg-blue-50 shadow-sm"
-                                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                                  }`}
-                                  onClick={() => {
-                                    setSelectedTextElement(element.id)
-                                    loadElementToControls(element)
-                                  }}
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-sm truncate">
-                                      {element.type === "text" ? element.text : "Logo"}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {element.type === "text"
-                                        ? `${element.font} • ${element.size}px`
-                                        : `${element.size?.width || 100}×${element.size?.height || 100}px`}
-                                    </div>
+                        {/* Accordion for Text and RGB Controls */}
+                        <Accordion type="multiple" className="w-full">
+                          <AccordionItem value="text-controls">
+                            <AccordionTrigger>Text</AccordionTrigger>
+                            <AccordionContent>
+                              {/* Add Text Section */}
+                              <Card>
+                                <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                                  <CardTitle className="flex items-center gap-2">
+                                    <Palette className="h-5 w-5" />
+                                    Add Text
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-3 sm:p-4 space-y-4">
+                                  <div className="flex gap-2">
+                                    {showHelp ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <input
+                                            type="text"
+                                            value={textInput}
+                                            onChange={(e) => setTextInput(e.target.value)}
+                                            placeholder="Enter your text here..."
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            onKeyDown={(e) => e.key === "Enter" && addTextElement()}
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent>Type your text and click Add to add it to the design</TooltipContent>
+                                      </Tooltip>
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        value={textInput}
+                                        onChange={(e) => setTextInput(e.target.value)}
+                                        placeholder="Enter your text here..."
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        onKeyDown={(e) => e.key === "Enter" && addTextElement()}
+                                      />
+                                    )}
+                                    {showHelp ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button onClick={addTextElement} disabled={!textInput.trim()} className="px-6 bg-gradient-custom hover:bg-gradient-custom-reverse text-white">
+                                            Add
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Add the text to your design</TooltipContent>
+                                      </Tooltip>
+                                    ) : (
+                                      <Button onClick={addTextElement} disabled={!textInput.trim()} className="px-6 bg-gradient-custom hover:bg-gradient-custom-reverse text-white">
+                                        Add
+                                      </Button>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2">
-                            <Button
-                                      variant="ghost"
-                              size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        deleteTextElement(element.id)
-                                      }}
-                                      className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
-                                    >
-                                      <X className="h-4 w-4" />
-                            </Button>
-                                  </div>
-                                </div>
-                          ))}
-                        </div>
-                            {textElements.length > 3 && (
-                              <div className="mt-3 pt-3 border-t">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setTextElements([])}
-                                  className="w-full text-red-600 hover:text-red-700"
-                                >
-                                  Clear All Elements
-                                </Button>
-                      </div>
-                            )}
-                    </CardContent>
-                  </Card>
+                                </CardContent>
+                              </Card>
 
-                        {/* Edit Selected Text Section */}
-                        {selectedTextElement !== null && (
-                  <Card>
-                    <CardHeader>
-                              <CardTitle>Edit Selected Text</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                              {/* Edit text content */}
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">Text</Label>
-                                <input
-                                  type="text"
-                                  value={
-                                    textElements.find((el) => el.id === selectedTextElement)?.text || ""
-                                  }
-                                  onChange={(e) => {
-                                    const newText = e.target.value
-                                    updateTextElement(selectedTextElement, { text: newText })
-                                  }}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                        <Label className="text-sm font-medium">Font Family</Label>
-                                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                                  {[
-                                    { value: "Arial", label: "Arial" },
-                                    { value: "Orbitron", label: "Orbitron" },
-                                    { value: "Rajdhani", label: "Rajdhani" },
-                                    { value: "Exo 2", label: "Exo 2" },
-                                    { value: "Audiowide", label: "Audiowide" },
-                                    { value: "Roboto", label: "Roboto" },
-                                    { value: "Open Sans", label: "Open Sans" },
-                                    { value: "Montserrat", label: "Montserrat" },
-                                    { value: "Pacifico", label: "Pacifico" },
-                                    { value: "Fredoka One", label: "Fredoka One" },
-                          ].map((font) => (
-                            <button
-                              key={font.value}
-                              onClick={() => setSelectedFont(font.value)}
-                                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-colors w-full ${
-                                selectedFont === font.value
-                                  ? "border-blue-500 bg-blue-50"
-                                  : "border-gray-200 hover:border-gray-300"
-                              }`}
-                                      type="button"
-                                    >
-                                      <span style={{ fontFamily: font.value }}>{font.label}</span>
-                              {selectedFont === font.value && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Size: {fontSize}px</Label>
-                          <Slider
-                            value={[fontSize]}
-                            onValueChange={(value) => setFontSize(value[0])}
-                            min={8}
-                            max={72}
-                            step={1}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Color</Label>
-                                <div className="flex gap-2 mt-1 items-center">
-                            <input
-                              type="color"
-                              value={textColor}
-                              onChange={(e) => setTextColor(e.target.value)}
-                              className="w-12 h-10 rounded border cursor-pointer"
-                            />
-                            <div className="flex gap-1">
-                              {["#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00"].map((color) => (
-                                <button
-                                  key={color}
-                                  className="w-6 h-6 rounded border-2 border-gray-300 hover:border-gray-500"
-                                  style={{ backgroundColor: color }}
-                                  onClick={() => setTextColor(color)}
-                                        type="button"
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                                <Label className="text-sm font-medium">Position</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs">X: {textPosition.x}%</Label>
-                          <Slider
-                            value={[textPosition.x]}
-                            onValueChange={(value) => setTextPosition((prev) => ({ ...prev, x: value[0] }))}
-                            min={0}
-                            max={100}
-                            step={1}
-                          />
-                        </div>
-                                  <div>
-                                    <Label className="text-xs">Y: {textPosition.y}%</Label>
-                          <Slider
-                            value={[textPosition.y]}
-                            onValueChange={(value) => setTextPosition((prev) => ({ ...prev, y: value[0] }))}
-                            min={0}
-                            max={100}
-                            step={1}
-                          />
-                        </div>
-                      </div>
-                              </div>
-                        <div className="space-y-2">
-                                <Label className="text-sm font-medium">Rotation</Label>
-                          <Slider
-                            value={[textRotation]}
-                            onValueChange={(value) => setTextRotation(value[0])}
-                            min={-180}
-                            max={180}
-                            step={1}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                                <Label className="text-sm font-medium">Opacity</Label>
-                          <Slider
-                            value={[textOpacity]}
-                            onValueChange={(value) => setTextOpacity(value[0])}
-                            min={0}
-                            max={100}
-                            step={5}
-                          />
-                        </div>
-                              {/* Collapsible Advanced Options */}
-                              <details className="mt-2">
-                                <summary className="cursor-pointer text-sm font-medium text-gray-700">Advanced Options</summary>
-                                <div className="space-y-2 mt-2">
-                          <div className="flex items-center gap-2">
-                                    <Label className="text-xs">Shadow</Label>
-                                    <Switch checked={textShadow.enabled} onCheckedChange={(checked) => setTextShadow((prev) => ({ ...prev, enabled: checked }))} />
-                        </div>
-                        {textShadow.enabled && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                              <Label className="text-xs">X: {textShadow.x}px</Label>
-                              <Slider
-                                value={[textShadow.x]}
-                                onValueChange={(value) => setTextShadow((prev) => ({ ...prev, x: value[0] }))}
-                                min={-10}
-                                max={10}
-                                step={1}
-                              />
-                            </div>
-                                      <div>
-                              <Label className="text-xs">Y: {textShadow.y}px</Label>
-                              <Slider
-                                value={[textShadow.y]}
-                                onValueChange={(value) => setTextShadow((prev) => ({ ...prev, y: value[0] }))}
-                                min={-10}
-                                max={10}
-                                step={1}
-                              />
-                            </div>
-                                      <div>
-                              <Label className="text-xs">Blur: {textShadow.blur}px</Label>
-                              <Slider
-                                value={[textShadow.blur]}
-                                onValueChange={(value) => setTextShadow((prev) => ({ ...prev, blur: value[0] }))}
-                                min={0}
-                                max={20}
-                                step={1}
-                              />
-                            </div>
-                                      <div>
-                              <Label className="text-xs">Color</Label>
-                              <input
-                                type="color"
-                                value={textShadow.color}
-                                onChange={(e) => setTextShadow((prev) => ({ ...prev, color: e.target.value }))}
-                                className="w-full h-8 rounded border cursor-pointer"
-                              />
-                            </div>
-                          </div>
-                        )}
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <Label className="text-xs">Outline</Label>
-                                    <Switch checked={textOutline.enabled} onCheckedChange={(checked) => setTextOutline((prev) => ({ ...prev, enabled: checked }))} />
-                        </div>
-                        {textOutline.enabled && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                              <Label className="text-xs">Width: {textOutline.width}px</Label>
-                              <Slider
-                                value={[textOutline.width]}
-                                onValueChange={(value) => setTextOutline((prev) => ({ ...prev, width: value[0] }))}
-                                min={1}
-                                max={5}
-                                step={1}
-                              />
-                            </div>
-                                      <div>
-                              <Label className="text-xs">Color</Label>
-                              <input
-                                type="color"
-                                value={textOutline.color}
-                                onChange={(e) => setTextOutline((prev) => ({ ...prev, color: e.target.value }))}
-                                className="w-full h-8 rounded border cursor-pointer"
-                              />
-                            </div>
-                          </div>
-                        )}
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <Label className="text-xs">Gradient</Label>
-                                    <Switch checked={textGradient.enabled} onCheckedChange={(checked) => setTextGradient((prev) => ({ ...prev, enabled: checked }))} />
-                        </div>
-                        {textGradient.enabled && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                <Label className="text-xs">From</Label>
-                                <input
-                                  type="color"
-                                  value={textGradient.from}
-                                  onChange={(e) => setTextGradient((prev) => ({ ...prev, from: e.target.value }))}
-                                  className="w-full h-8 rounded border cursor-pointer"
-                                />
-                              </div>
-                                      <div>
-                                <Label className="text-xs">To</Label>
-                                <input
-                                  type="color"
-                                  value={textGradient.to}
-                                  onChange={(e) => setTextGradient((prev) => ({ ...prev, to: e.target.value }))}
-                                  className="w-full h-8 rounded border cursor-pointer"
-                                />
-                              </div>
-                                      <div className="col-span-2">
-                              <Label className="text-xs">Direction</Label>
-                                        <div className="flex gap-2 mt-1">
-                                <Button
-                                  variant={textGradient.direction === "horizontal" ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => setTextGradient((prev) => ({ ...prev, direction: "horizontal" }))}
-                                >
-                                  Horizontal
-                                </Button>
-                                <Button
-                                  variant={textGradient.direction === "vertical" ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => setTextGradient((prev) => ({ ...prev, direction: "vertical" }))}
-                                >
-                                  Vertical
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <Label className="text-xs">Curved Text</Label>
-                        <Switch checked={isCurvedText} onCheckedChange={setIsCurvedText} />
-                      </div>
-                      {isCurvedText && (
+                              {/* Text Elements Management Section */}
+                              <Card>
+                                <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                                  <CardTitle>Text Elements</CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-3 sm:p-4">
+                                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                                    {textElements.map((element, index) => (
+                                      <div
+                                        key={element.id}
+                                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${selectedTextElement === element.id
+                                            ? "border-blue-500 bg-blue-50 shadow-sm"
+                                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                          }`}
+                                        onClick={() => {
+                                          setSelectedTextElement(element.id)
+                                          loadElementToControls(element)
+                                        }}
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-sm truncate">
+                                            {element.type === "text" ? element.text : "Logo"}
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            {element.type === "text"
+                                              ? `${element.font} • ${element.size}px`
+                                              : `${element.size?.width || 100}×${element.size?.height || 100}px`}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              deleteTextElement(element.id)
+                                            }}
+                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {textElements.length > 3 && (
+                                    <div className="mt-3 pt-3 border-t">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setTextElements([])}
+                                        className="w-full text-red-600 hover:text-red-700"
+                                      >
+                                        Clear All Elements
+                                      </Button>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+
+                              {/* Edit Selected Text Section */}
+                              {selectedTextElement !== null && (
+                                <Card>
+                                  <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                                    <CardTitle>Edit Selected Text</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="p-3 sm:p-4 space-y-4">
+                                    {/* Edit text content */}
                                     <div className="space-y-2">
-                          <Label className="text-xs">Curve Radius: {curveRadius}px</Label>
-                          <Slider
-                            value={[curveRadius]}
-                            onValueChange={(value) => setCurveRadius(value[0])}
-                            min={50}
-                            max={300}
-                            step={10}
-                          />
-                        </div>
-                      )}
-                                </div>
-                              </details>
-                    </CardContent>
-                  </Card>
-                        )}
-                      </>
-                    )}
-                    {tab.value === 'rgb' && (
-                      <>
-                        {mousepadType === "normal" ? (
-                  <Card>
-                            <CardContent className="p-6 text-center">
-                              <Lightbulb className="mx-auto h-12 w-12 text-gray-400 mb-3" />
-                              <h3 className="font-medium mb-2">RGB Features Locked</h3>
-                              <p className="text-sm text-gray-500 mb-4">
-                                Switch to RGB mousepad to customize lighting effects
-                              </p>
-                              <Button onClick={() => setMousepadType("rgb")}>Upgrade to RGB (+$15)</Button>
-                    </CardContent>
-                  </Card>
-                        ) : (
-                    <Card>
-                      <CardHeader>
-                              <CardTitle>RGB Lighting</CardTitle>
-                      </CardHeader>
-                            <CardContent className="space-y-6">
+                                      <Label className="text-sm font-medium">Text</Label>
+                                      <input
+                                        type="text"
+                                        value={
+                                          textElements.find((el) => el.id === selectedTextElement)?.text || ""
+                                        }
+                                        onChange={(e) => {
+                                          const newText = e.target.value
+                                          updateTextElement(selectedTextElement, { text: newText })
+                                        }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium">Font Family</Label>
+                                      <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                                        {[
+                                          { value: "Arial", label: "Arial" },
+                                          { value: "Orbitron", label: "Orbitron" },
+                                          { value: "Rajdhani", label: "Rajdhani" },
+                                          { value: "Exo 2", label: "Exo 2" },
+                                          { value: "Audiowide", label: "Audiowide" },
+                                          { value: "Roboto", label: "Roboto" },
+                                          { value: "Open Sans", label: "Open Sans" },
+                                          { value: "Montserrat", label: "Montserrat" },
+                                          { value: "Pacifico", label: "Pacifico" },
+                                          { value: "Fredoka One", label: "Fredoka One" },
+                                        ].map((font) => (
+                                          <button
+                                            key={font.value}
+                                            onClick={() => setSelectedFont(font.value)}
+                                            className={`flex items-center justify-between p-2 rounded-lg border text-left transition-colors w-full ${selectedFont === font.value
+                                                ? "border-blue-500 bg-blue-50"
+                                                : "border-gray-200 hover:border-gray-300"
+                                              }`}
+                                            type="button"
+                                          >
+                                            <span style={{ fontFamily: font.value }}>{font.label}</span>
+                                            {selectedFont === font.value && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium">Size: {fontSize}px</Label>
+                                      <Slider
+                                        value={[fontSize]}
+                                        onValueChange={(value) => setFontSize(value[0])}
+                                        min={8}
+                                        max={72}
+                                        step={1}
+                                        className="w-full"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium">Color</Label>
+                                      <div className="flex gap-2 mt-1 items-center">
+                                        <input
+                                          type="color"
+                                          value={textColor}
+                                          onChange={(e) => setTextColor(e.target.value)}
+                                          className="w-12 h-10 rounded border cursor-pointer"
+                                        />
+                                        <div className="flex gap-1">
+                                          {["#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00"].map((color) => (
+                                            <button
+                                              key={color}
+                                              className="w-6 h-6 rounded border-2 border-gray-300 hover:border-gray-500"
+                                              style={{ backgroundColor: color }}
+                                              onClick={() => setTextColor(color)}
+                                              type="button"
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium">Position</Label>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <Label className="text-xs">X: {textPosition.x}%</Label>
+                                          <Slider
+                                            value={[textPosition.x]}
+                                            onValueChange={(value) => setTextPosition((prev) => ({ ...prev, x: value[0] }))}
+                                            min={0}
+                                            max={100}
+                                            step={1}
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs">Y: {textPosition.y}%</Label>
+                                          <Slider
+                                            value={[textPosition.y]}
+                                            onValueChange={(value) => setTextPosition((prev) => ({ ...prev, y: value[0] }))}
+                                            min={0}
+                                            max={100}
+                                            step={1}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium">Rotation</Label>
+                                      <Slider
+                                        value={[textRotation]}
+                                        onValueChange={(value) => setTextRotation(value[0])}
+                                        min={-180}
+                                        max={180}
+                                        step={1}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium">Opacity</Label>
+                                      <Slider
+                                        value={[textOpacity]}
+                                        onValueChange={(value) => setTextOpacity(value[0])}
+                                        min={0}
+                                        max={100}
+                                        step={5}
+                                      />
+                                    </div>
+                                    {/* Collapsible Advanced Options */}
+                                    <details className="mt-2">
+                                      <summary className="cursor-pointer text-sm font-medium text-gray-700">Advanced Options</summary>
+                                      <div className="space-y-2 mt-2">
+                                        <div className="flex items-center gap-2">
+                                          <Label className="text-xs">Shadow</Label>
+                                          <Switch checked={textShadow.enabled} onCheckedChange={(checked) => setTextShadow((prev) => ({ ...prev, enabled: checked }))} />
+                                        </div>
+                                        {textShadow.enabled && (
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <Label className="text-xs">X: {textShadow.x}px</Label>
+                                              <Slider
+                                                value={[textShadow.x]}
+                                                onValueChange={(value) => setTextShadow((prev) => ({ ...prev, x: value[0] }))}
+                                                min={-10}
+                                                max={10}
+                                                step={1}
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label className="text-xs">Y: {textShadow.y}px</Label>
+                                              <Slider
+                                                value={[textShadow.y]}
+                                                onValueChange={(value) => setTextShadow((prev) => ({ ...prev, y: value[0] }))}
+                                                min={-10}
+                                                max={10}
+                                                step={1}
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label className="text-xs">Blur: {textShadow.blur}px</Label>
+                                              <Slider
+                                                value={[textShadow.blur]}
+                                                onValueChange={(value) => setTextShadow((prev) => ({ ...prev, blur: value[0] }))}
+                                                min={0}
+                                                max={20}
+                                                step={1}
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label className="text-xs">Color</Label>
+                                              <input
+                                                type="color"
+                                                value={textShadow.color}
+                                                onChange={(e) => setTextShadow((prev) => ({ ...prev, color: e.target.value }))}
+                                                className="w-full h-8 rounded border cursor-pointer"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Label className="text-xs">Outline</Label>
+                                          <Switch checked={textOutline.enabled} onCheckedChange={(checked) => setTextOutline((prev) => ({ ...prev, enabled: checked }))} />
+                                        </div>
+                                        {textOutline.enabled && (
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <Label className="text-xs">Width: {textOutline.width}px</Label>
+                                              <Slider
+                                                value={[textOutline.width]}
+                                                onValueChange={(value) => setTextOutline((prev) => ({ ...prev, width: value[0] }))}
+                                                min={1}
+                                                max={5}
+                                                step={1}
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label className="text-xs">Color</Label>
+                                              <input
+                                                type="color"
+                                                value={textOutline.color}
+                                                onChange={(e) => setTextOutline((prev) => ({ ...prev, color: e.target.value }))}
+                                                className="w-full h-8 rounded border cursor-pointer"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Label className="text-xs">Gradient</Label>
+                                          <Switch checked={textGradient.enabled} onCheckedChange={(checked) => setTextGradient((prev) => ({ ...prev, enabled: checked }))} />
+                                        </div>
+                                        {textGradient.enabled && (
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <Label className="text-xs">From</Label>
+                                              <input
+                                                type="color"
+                                                value={textGradient.from}
+                                                onChange={(e) => setTextGradient((prev) => ({ ...prev, from: e.target.value }))}
+                                                className="w-full h-8 rounded border cursor-pointer"
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label className="text-xs">To</Label>
+                                              <input
+                                                type="color"
+                                                value={textGradient.to}
+                                                onChange={(e) => setTextGradient((prev) => ({ ...prev, to: e.target.value }))}
+                                                className="w-full h-8 rounded border cursor-pointer"
+                                              />
+                                            </div>
+                                            <div className="col-span-2">
+                                              <Label className="text-xs">Direction</Label>
+                                              <div className="flex gap-2 mt-1">
+                                                <Button
+                                                  variant={textGradient.direction === "horizontal" ? "default" : "outline"}
+                                                  size="sm"
+                                                  onClick={() => setTextGradient((prev) => ({ ...prev, direction: "horizontal" }))}
+                                                >
+                                                  Horizontal
+                                                </Button>
+                                                <Button
+                                                  variant={textGradient.direction === "vertical" ? "default" : "outline"}
+                                                  size="sm"
+                                                  onClick={() => setTextGradient((prev) => ({ ...prev, direction: "vertical" }))}
+                                                >
+                                                  Vertical
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Label className="text-xs">Curved Text</Label>
+                                          <Switch checked={isCurvedText} onCheckedChange={setIsCurvedText} />
+                                        </div>
+                                        {isCurvedText && (
+                                          <div className="space-y-2">
+                                            <Label className="text-xs">Curve Radius: {curveRadius}px</Label>
+                                            <Slider
+                                              value={[curveRadius]}
+                                              onValueChange={(value) => setCurveRadius(value[0])}
+                                              min={50}
+                                              max={300}
+                                              step={10}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </details>
+                                  </CardContent>
+                                </Card>
+                              )}
+                            </AccordionContent>
+                          </AccordionItem>
+                          {mousepadType === 'rgb' && (
+                            <AccordionItem value="rgb-controls">
+                              <AccordionTrigger>RGB</AccordionTrigger>
+                              <AccordionContent className="bg-white rounded-lg p-4">
                               {/* Live RGB Preview */}
                               <div className="flex flex-col items-center gap-2">
                                 <div className="relative w-40 h-10 flex items-center justify-center">
                                   <div
-                                    className={`absolute inset-0 rounded-full transition-all duration-500 ${
-                                      rgbMode === 'rainbow'
+                                    className={`absolute inset-0 rounded-full transition-all duration-500 ${rgbMode === 'rainbow'
                                         ? 'animate-rainbow'
                                         : rgbMode === 'breathing'
-                                        ? 'animate-breathing'
-                                        : ''
-                                    }`}
+                                          ? 'animate-breathing'
+                                          : ''
+                                      }`}
                                     style={{
                                       background:
                                         rgbMode === 'rainbow'
                                           ? 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)'
                                           : rgbMode === 'static' || rgbMode === 'breathing'
-                                          ? `linear-gradient(90deg, ${rgbColor}, ${rgbColor}80)`
-                                          : '#222',
+                                            ? `linear-gradient(90deg, ${rgbColor}, ${rgbColor}80)`
+                                            : '#222',
                                       opacity: rgbBrightness / 100,
                                       filter: rgbMode === 'breathing' ? `blur(4px)` : 'blur(2px)',
                                     }}
                                   />
                                   <div className="relative z-10 w-32 h-8 bg-white rounded-full border-2 border-gray-200 flex items-center justify-center text-xs font-semibold shadow">
                                     RGB Preview
-                                </div>
+                                  </div>
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1">Live preview of your RGB effect</div>
                               </div>
@@ -1500,74 +1955,82 @@ export default function AdvancedMousepadCustomizer() {
                                     showHelp ? (
                                       <Tooltip key={mode.value}>
                                         <TooltipTrigger asChild>
-                                <Button
+                                          <Button
                                             variant={rgbMode === mode.value ? 'default' : 'outline'}
-                                  size="sm"
-                                            className="rounded-full px-4"
+                                            size="sm"
+                                            className={`rounded-full px-4 ${
+                                              rgbMode === mode.value 
+                                                ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white' 
+                                                : 'hover:bg-gradient-custom hover:text-white'
+                                            }`}
                                             onClick={() => setRgbMode(mode.value)}
                                           >
                                             {mode.label}
-                                </Button>
+                                          </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>{RGB_MODE_DESCRIPTIONS[mode.value]}</TooltipContent>
                                       </Tooltip>
                                     ) : (
-                            <Button
+                                      <Button
                                         key={mode.value}
                                         variant={rgbMode === mode.value ? 'default' : 'outline'}
-                              size="sm"
-                                        className="rounded-full px-4"
+                                        size="sm"
+                                        className={`rounded-full px-4 ${
+                                          rgbMode === mode.value 
+                                            ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white' 
+                                            : 'hover:bg-gradient-custom hover:text-white'
+                                        }`}
                                         onClick={() => setRgbMode(mode.value)}
-                            >
+                                      >
                                         {mode.label}
-                            </Button>
+                                      </Button>
                                     )
                                   ))}
-                          </div>
+                                </div>
                                 <div className="text-xs text-gray-500 mt-1 min-h-[20px]">
                                   {RGB_MODE_DESCRIPTIONS[rgbMode]}
-                          </div>
-                      </div>
+                                </div>
+                              </div>
 
                               {/* Color Picker & Palette */}
                               {(rgbMode === 'static' || rgbMode === 'breathing') && (
                                 <div className="space-y-2">
                                   <div className="font-medium mb-1">Color Selection</div>
                                   <div className="flex gap-2 items-center">
-                              <input
-                                type="color"
-                                value={rgbColor}
-                                onChange={(e) => setRgbColor(e.target.value)}
-                                      className="w-10 h-10 rounded border"
-                              />
+                                    <input
+                                      type="color"
+                                      value={rgbColor}
+                                      onChange={(e) => setRgbColor(e.target.value)}
+                                      className="w-10 h-10 rounded border bg-white"
+                                    />
                                     <div className="flex gap-1">
                                       {["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffffff", "#000000"].map((color) => (
-                                  <button
-                                    key={color}
-                                          className={`w-6 h-6 rounded-full border-2 ${rgbColor === color ? 'border-blue-500' : 'border-gray-300'} hover:border-blue-400`}
-                                    style={{ backgroundColor: color }}
-                                    onClick={() => setRgbColor(color)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
+                                        <button
+                                          key={color}
+                                          className={`w-6 h-6 rounded-full border-2 bg-white ${rgbColor === color ? 'border-blue-500' : 'border-gray-300'} hover:border-blue-400`}
+                                          style={{ backgroundColor: color }}
+                                          onClick={() => setRgbColor(color)}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
                                 </div>
                               )}
 
                               {/* Brightness Slider */}
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2 font-medium mb-1">
-                                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.657-7.657l1.414 1.414M4.929 19.071l1.414-1.414m12.728 0l-1.414-1.414M4.929 4.929l1.414 1.414" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="5" stroke="#fbbf24" strokeWidth="2"/></svg>
+                                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.657-7.657l1.414 1.414M4.929 19.071l1.414-1.414m12.728 0l-1.414-1.414M4.929 4.929l1.414 1.414" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="5" stroke="#fbbf24" strokeWidth="2" /></svg>
                                   Brightness
                                   <span className="ml-2 text-xs text-gray-500">{rgbBrightness}%</span>
                                 </div>
-                          <Slider
-                            value={[rgbBrightness]}
+                                <Slider
+                                  value={[rgbBrightness]}
                                   onValueChange={(value) => setRgbBrightness(value[0])}
-                            min={10}
-                            max={100}
-                            step={5}
-                          />
+                                  min={10}
+                                  max={100}
+                                  step={5}
+                                />
                               </div>
 
                               {/* Reset Preset Button Only */}
@@ -1580,104 +2043,159 @@ export default function AdvancedMousepadCustomizer() {
                                   Reset to Default
                                 </Button>
                               </div>
-                        </CardContent>
-                      </Card>
-                        )}
-                    </>
-                  )}
+                            </AccordionContent>
+                          </AccordionItem>
+                          )}
+                        </Accordion>
+                      </>
+                    )}
                     {tab.value === 'order' && (
                       <>
-                  {/* Quantity */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Quantity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-3">
-                        <Button variant="outline" size="sm" onClick={() => setQuantity(Math.max(1, quantity - 1))}>
-                          -
-                        </Button>
-                        <span className="font-medium text-lg w-12 text-center">{quantity}</span>
-                        <Button variant="outline" size="sm" onClick={() => setQuantity(quantity + 1)}>
-                          +
-                        </Button>
-                        {quantity > 1 && (
-                          <Badge variant="secondary" className="ml-2">
-                            10% Bulk Discount!
-                          </Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                        {/* Quantity */}
+                        <Card>
+                          <CardHeader className="pb-2 pt-3 sm:pt-4 sm:pb-3">
+                            <CardTitle>Quantity</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 sm:p-4">
+                            <div className="flex items-center gap-3">
+                              <Button variant="outline" size="sm" onClick={() => setQuantity(Math.max(1, quantity - 1))}>
+                                -
+                              </Button>
+                              <span className="font-medium text-lg w-12 text-center">{quantity}</span>
+                              <Button variant="outline" size="sm" onClick={() => setQuantity(quantity + 1)}>
+                                +
+                              </Button>
+                              {quantity > 1 && (
+                                <Badge variant="secondary" className="ml-2">
+                                  10% Bulk Discount!
+                                </Badge>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
 
-                  {/* Price Calculator */}
-                  <PriceCalculator
-                    mousepadType={mousepadType}
-                    mousepadSize={mousepadSize}
-                    thickness={thickness}
-                    edgeStitching={edgeStitching}
-                    surfaceTexture={surfaceTexture}
-                    quantity={quantity}
-                  />
+                        {/* Price Calculator */}
+                        <PriceCalculator
+                          mousepadType={mousepadType}
+                          mousepadSize={mousepadSize}
+                          thickness={thickness}
+                          edgeStitching={edgeStitching}
+                          surfaceTexture={surfaceTexture}
+                          quantity={quantity}
+                        />
 
-                  {/* Action Buttons */}
-                  <div className="space-y-3">
+                        {/* Action Buttons */}
+                        <div className="space-y-3">
                           <Button
-                            className="w-full"
+                            className="w-full bg-gradient-custom hover:bg-gradient-custom-reverse text-white font-semibold shadow-lg"
                             size="lg"
-                            onClick={() => {
-                              addItem({
-                                id: Date.now().toString() + Math.random().toString(36).slice(2),
-                                name: "Custom Mousepad",
-                                image: editedImage || uploadedImage || "/placeholder.svg",
-                                specs: {
-                                  type: mousepadType,
-                                  size: mousepadSize,
-                                  thickness,
-                                  surface: surfaceTexture,
-                                  stitching: edgeStitching,
-                                  rgb: mousepadType === "rgb" ? { mode: rgbMode, color: rgbColor } : undefined,
-                                  text: textElements,
-                                },
-                                quantity,
-                                price: parseFloat(getMousepadPrice().toFixed(2)),
-                              });
-                              if (toast) {
-                                toast({
-                                  title: "Added to Cart!",
-                                  description: "Your custom mousepad has been added to the cart.",
-                                  duration: 2000,
+                            onClick={async () => {
+                              try {
+                                // Always capture the complete customized design
+                                console.log('Capturing design with text elements:', textElements);
+                                console.log('RGB settings before capture:', {
+                                  mousepadType,
+                                  rgbMode,
+                                  rgbColor,
+                                  rgbBrightness,
+                                  rgbAnimationSpeed
                                 });
+                                console.log('Applied overlays:', appliedOverlays);
+                                console.log('Selected template:', selectedTemplate);
+                                const finalImage = await captureCompleteDesign();
+                                console.log('Capture completed, image length:', finalImage.length);
+                                
+                                await addItem({
+                                  id: Date.now().toString() + Math.random().toString(36).slice(2),
+                                  name: "Custom Mousepad",
+                                  image: finalImage,
+                                  specs: {
+                                    type: mousepadType,
+                                    size: mousepadSize,
+                                    thickness,
+                                    surface: surfaceTexture,
+                                    stitching: edgeStitching,
+                                    rgb: mousepadType === "rgb" ? { 
+                                      mode: rgbMode, 
+                                      color: rgbColor, 
+                                      brightness: rgbBrightness, 
+                                      animationSpeed: rgbAnimationSpeed 
+                                    } : undefined,
+                                    text: textElements,
+                                    overlays: appliedOverlays,
+                                  },
+                                  quantity,
+                                  price: parseFloat(getMousepadPrice().toFixed(2)),
+                                });
+                                if (toast) {
+                                  toast({
+                                    title: "Added to Cart!",
+                                    description: "Your custom mousepad has been added to the cart.",
+                                    duration: 2000,
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Error adding to cart:', error);
+                                // Fallback to base image if capture fails
+                                await addItem({
+                                  id: Date.now().toString() + Math.random().toString(36).slice(2),
+                                  name: "Custom Mousepad",
+                                  image: editedImage || uploadedImage || "/placeholder.svg",
+                                  specs: {
+                                    type: mousepadType,
+                                    size: mousepadSize,
+                                    thickness,
+                                    surface: surfaceTexture,
+                                    stitching: edgeStitching,
+                                    rgb: mousepadType === "rgb" ? { 
+                                      mode: rgbMode, 
+                                      color: rgbColor, 
+                                      brightness: rgbBrightness, 
+                                      animationSpeed: rgbAnimationSpeed 
+                                    } : undefined,
+                                    text: textElements,
+                                    overlays: appliedOverlays,
+                                  },
+                                  quantity,
+                                  price: parseFloat(getMousepadPrice().toFixed(2)),
+                                });
+                                if (toast) {
+                                  toast({
+                                    title: "Added to Cart!",
+                                    description: "Your custom mousepad has been added to the cart.",
+                                    duration: 2000,
+                                  });
+                                }
                               }
                             }}
                           >
-                      <ShoppingCart className="h-5 w-5 mr-2" />
-                      Add to Cart
-                    </Button>
-                  </div>
+                            <ShoppingCart className="h-5 w-5 mr-2" />
+                            Add to Cart
+                          </Button>
+                        </div>
 
-                  {/* Guarantees */}
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2 text-green-600">
-                          <div className="w-2 h-2 bg-green-600 rounded-full" />
-                          30-day money-back guarantee
-                        </div>
-                        <div className="flex items-center gap-2 text-blue-600">
-                          <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                          Free shipping on orders over $50
-                        </div>
-                        <div className="flex items-center gap-2 text-purple-600">
-                          <div className="w-2 h-2 bg-purple-600 rounded-full" />
-                          1-year warranty included
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                        {/* Guarantees */}
+                        <Card>
+                          <CardContent className="p-4">
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center gap-2 text-green-600">
+                                <div className="w-2 h-2 bg-green-600 rounded-full" />
+                                30-day money-back guarantee
+                              </div>
+                              <div className="flex items-center gap-2 text-blue-600">
+                                <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                                Free shipping on orders over $50
+                              </div>
+                              <div className="flex items-center gap-2 text-purple-600">
+                                <div className="w-2 h-2 bg-purple-600 rounded-full" />
+                                1-year warranty included
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       </>
                     )}
-                </TabsContent>
+                  </TabsContent>
                 ))}
               </Tabs>
             </div>

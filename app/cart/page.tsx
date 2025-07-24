@@ -144,7 +144,18 @@ export default function CartPage() {
                 {items.map((item) => (
                   <div key={item.id} className="flex flex-col sm:flex-row gap-4 items-center border-b pb-6 last:border-b-0 group">
                     <div className="w-24 h-24 relative flex-shrink-0 overflow-hidden rounded-lg border bg-white">
-                      <Image src={item.image} alt={item.name} fill className="object-cover group-hover:scale-105 transition-transform duration-200" />
+                      <Image 
+                        src={item.image} 
+                        alt={item.name} 
+                        fill 
+                        className="object-contain group-hover:scale-105 transition-transform duration-200" 
+                        style={{
+                          padding: '1px',
+                          backgroundColor: 'transparent',
+                          objectFit: 'contain'
+                        }}
+                        unoptimized
+                      />
                     </div>
                     <div className="flex-1 min-w-0 w-full">
                       <div className="flex items-center justify-between gap-2">
@@ -154,9 +165,35 @@ export default function CartPage() {
                         </Button>
                       </div>
                       <div className="text-xs text-gray-500 mb-1 flex flex-wrap gap-2 mt-1">
-                        {Object.entries(item.specs || {}).map(([k, v]) => (
-                          <span key={k} className="bg-gray-100 rounded px-2 py-0.5">{k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
-                        ))}
+                        {Object.entries(item.specs || {}).map(([k, v]) => {
+                          // Format the spec values for better display
+                          let displayValue = String(v);
+                          
+                          if (typeof v === 'object' && v !== null) {
+                            if (k === 'rgb' && (v as any).mode) {
+                              displayValue = `${(v as any).mode} mode`;
+                              if ((v as any).color && (v as any).mode !== 'rainbow') {
+                                displayValue += ` (${(v as any).color})`;
+                              }
+                              if ((v as any).brightness) {
+                                displayValue += ` - ${(v as any).brightness}% brightness`;
+                              }
+                            } else if (k === 'text' && Array.isArray(v) && v.length > 0) {
+                              const textItems = v.map((textItem: any) => textItem.text).join(', ');
+                              displayValue = textItems;
+                            } else if (k === 'overlays' && Array.isArray(v)) {
+                              displayValue = v.length > 0 ? `${v.length} overlay(s)` : 'None';
+                            } else {
+                              displayValue = 'Custom';
+                            }
+                          }
+                          
+                          return (
+                            <span key={k} className="bg-gray-100 rounded px-2 py-0.5">
+                              {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: {displayValue}
+                            </span>
+                          );
+                        })}
                       </div>
                       <div className="flex items-center gap-3 mt-2">
                         <span className="text-sm">Qty:</span>
@@ -176,9 +213,7 @@ export default function CartPage() {
                         </Button>
                         <span className="ml-4 font-semibold">${(item.price * item.quantity).toFixed(2)}</span>
                       </div>
-                      <div className="flex gap-2 mt-2">
-                        <Button variant="secondary" size="sm" className="rounded px-3" disabled>Save for Later</Button>
-                      </div>
+
                     </div>
                   </div>
                 ))}
