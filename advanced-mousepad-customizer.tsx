@@ -900,6 +900,12 @@ export default function AdvancedMousepadCustomizer() {
 
   const [currency, setCurrency] = useState<'USD' | 'SGD'>('USD');
 
+  // Add this handler near other handlers
+  const handleSidebarImageSelect = (image: string) => {
+    setUploadedImage(image);
+    setEditedImage(image);
+  };
+
   if (!hasMounted) return null;
   return (
     <TooltipProvider delayDuration={2000}>
