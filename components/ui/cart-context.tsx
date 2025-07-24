@@ -57,6 +57,13 @@ const compressImage = (dataUrl: string, maxWidth: number = 800, quality: number 
 // Safe localStorage operations with compression
 const saveToStorage = async (items: CartItem[]) => {
   try {
+    console.log('Saving items to storage:', items.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity
+    })));
+    
     // Compress images before storing
     const compressedItems = await Promise.all(
       items.map(async (item) => ({
@@ -64,6 +71,13 @@ const saveToStorage = async (items: CartItem[]) => {
         image: await compressImage(item.image, 600, 0.7) // Smaller size for cart
       }))
     );
+    
+    console.log('Compressed items for storage:', compressedItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity
+    })));
     
     const data = JSON.stringify(compressedItems);
     
@@ -104,6 +118,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (stored) {
       try {
         const parsedItems = JSON.parse(stored);
+        console.log('Loaded items from localStorage:', parsedItems.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        })));
+        
         // Validate that it's an array
         if (Array.isArray(parsedItems)) {
           setItems(parsedItems);
@@ -130,11 +151,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addItem = async (item: CartItem) => {
     try {
+      console.log('Adding item to cart:', {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        specs: item.specs
+      });
+      
       setItems((prev) => {
         const existing = prev.find((i) => i.id === item.id);
         if (existing) {
-          return prev.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i);
+          const updatedItem = { ...existing, quantity: existing.quantity + item.quantity };
+          console.log('Updated existing item:', updatedItem);
+          return prev.map((i) => i.id === item.id ? updatedItem : i);
         }
+        console.log('Adding new item to cart');
         return [...prev, item];
       });
     } catch (error) {

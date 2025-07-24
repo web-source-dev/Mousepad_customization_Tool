@@ -2121,6 +2121,8 @@ export default function AdvancedMousepadCustomizer() {
                                 
                                 const calculatedPrice = getMousepadPrice();
                                 console.log('Calculated price for cart:', calculatedPrice);
+                                console.log('Price type:', typeof calculatedPrice);
+                                console.log('Is price valid?', !isNaN(calculatedPrice) && calculatedPrice > 0);
                                 
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
