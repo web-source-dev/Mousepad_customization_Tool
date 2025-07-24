@@ -8,10 +8,12 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type WixUser = { email: string; id: string } | null;
 
 export default function CartPage() {
+  const router = useRouter();
   const { items, removeItem, updateItem, clearCart } = useCart();
   const { toast } = useToast();
   const [clearing, setClearing] = React.useState(false);
@@ -110,6 +112,9 @@ export default function CartPage() {
   // Responsive: stack on mobile, side-by-side on desktop
   return (
     <div className="max-w-5xl mx-auto py-8 px-2 md:px-4 flex flex-col md:flex-row gap-8">
+      <div className="mb-4">
+        <Button variant="outline" onClick={() => router.back()}>&larr; Back</Button>
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Your Cart</h1>
