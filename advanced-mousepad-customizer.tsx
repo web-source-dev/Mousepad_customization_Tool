@@ -875,7 +875,7 @@ export default function AdvancedMousepadCustomizer() {
                   <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">Professional mousepad customization tool</p>
                 </div>
               </div>
-              
+
               {/* Desktop Controls */}
               <div className="hidden md:flex items-center gap-2">
                 {/* Toggle Help Mode Button */}
@@ -967,7 +967,7 @@ export default function AdvancedMousepadCustomizer() {
                     </span>
                   )}
                 </button>
-                
+
                 {/* Mobile Menu */}
                 <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                   <SheetTrigger asChild>
@@ -983,7 +983,7 @@ export default function AdvancedMousepadCustomizer() {
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
-                      
+
                       <div className="space-y-3">
                         <Button onClick={saveDesign} className="w-full justify-start">
                           <Save className="h-4 w-4 mr-2" />
@@ -1255,7 +1255,7 @@ export default function AdvancedMousepadCustomizer() {
             {/* Mobile Bottom Sheet for Controls */}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button 
+                <Button
                   className="fixed bottom-4 right-4 w-14 h-14 rounded-full bg-gradient-custom hover:bg-gradient-custom-reverse text-white shadow-lg z-50"
                   size="lg"
                 >
@@ -1264,13 +1264,10 @@ export default function AdvancedMousepadCustomizer() {
               </SheetTrigger>
               <SheetContent side="bottom" className="h-[85vh] overflow-y-auto">
                 <div className="space-y-4 py-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-center">
                     <h2 className="text-lg font-semibold">Customize Your Mousepad</h2>
-                    <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(false)}>
-                      <X className="h-4 w-4" />
-                    </Button>
                   </div>
-                  
+
                   {/* Mobile Tabs */}
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="flex w-full gap-1 bg-white shadow-lg border rounded-lg p-1">
@@ -1279,8 +1276,8 @@ export default function AdvancedMousepadCustomizer() {
                           key={tab.value}
                           value={tab.value}
                           className={`flex-1 text-xs font-semibold transition-all duration-200 ${tab.value === 'order'
-                              ? 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105'
-                              : 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white'
+                            ? 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105'
+                            : 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white'
                             }`}
                         >
                           {tab.value === 'order' && <ShoppingCart className="h-3 w-3 mr-1" />}
@@ -1288,7 +1285,7 @@ export default function AdvancedMousepadCustomizer() {
                         </TabsTrigger>
                       ))}
                     </TabsList>
-                    
+
                     {TAB_ORDER.map(tab => (
                       <TabsContent key={tab.value} value={tab.value} className="space-y-3 mt-4">
                         {tab.value === 'design' && (
@@ -1347,8 +1344,8 @@ export default function AdvancedMousepadCustomizer() {
                                               variant={rgbMode === mode.value ? 'default' : 'outline'}
                                               size="sm"
                                               className={`rounded-full px-2 text-xs ${rgbMode === mode.value
-                                                  ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white'
-                                                  : 'hover:bg-gradient-custom hover:text-white'
+                                                ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white'
+                                                : 'hover:bg-gradient-custom hover:text-white'
                                                 }`}
                                               onClick={() => setRgbMode(mode.value)}
                                             >
@@ -1615,7 +1612,7 @@ export default function AdvancedMousepadCustomizer() {
                             </Accordion>
                           </>
                         )}
-                        
+
                         {tab.value === 'order' && (
                           <>
                             {/* Mobile Order Controls */}
@@ -1789,12 +1786,12 @@ export default function AdvancedMousepadCustomizer() {
                                     },
                                     quantity,
                                     price: parseFloat(getExactMousepadPrice({
-                      mousepadSize,
-                      thickness,
-                      currency,
-                      quantity,
-                      rgb: mousepadType === "rgb",
-                    }).toFixed(2)),
+                                      mousepadSize,
+                                      thickness,
+                                      currency,
+                                      quantity,
+                                      rgb: mousepadType === "rgb",
+                                    }).toFixed(2)),
                                   });
                                   if (toast) {
                                     toast({
@@ -2149,8 +2146,8 @@ export default function AdvancedMousepadCustomizer() {
                       key={tab.value}
                       value={tab.value}
                       className={`flex-1 text-xs sm:text-sm font-semibold transition-all duration-200 ${tab.value === 'order'
-                          ? 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105'
-                          : 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white'
+                        ? 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105'
+                        : 'data-[state=active]:bg-gradient-custom data-[state=active]:text-white'
                         }`}
                     >
                       {tab.value === 'order' && <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />}
@@ -2244,8 +2241,8 @@ export default function AdvancedMousepadCustomizer() {
                                               variant={rgbMode === mode.value ? 'default' : 'outline'}
                                               size="sm"
                                               className={`rounded-full px-2 sm:px-4 text-xs sm:text-sm ${rgbMode === mode.value
-                                                  ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white'
-                                                  : 'hover:bg-gradient-custom hover:text-white'
+                                                ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white'
+                                                : 'hover:bg-gradient-custom hover:text-white'
                                                 }`}
                                               onClick={() => setRgbMode(mode.value)}
                                             >
@@ -2260,8 +2257,8 @@ export default function AdvancedMousepadCustomizer() {
                                           variant={rgbMode === mode.value ? 'default' : 'outline'}
                                           size="sm"
                                           className={`rounded-full px-2 sm:px-4 text-xs sm:text-sm ${rgbMode === mode.value
-                                              ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white'
-                                              : 'hover:bg-gradient-custom hover:text-white'
+                                            ? 'bg-gradient-custom hover:bg-gradient-custom-reverse text-white'
+                                            : 'hover:bg-gradient-custom hover:text-white'
                                             }`}
                                           onClick={() => setRgbMode(mode.value)}
                                         >
@@ -2971,12 +2968,12 @@ export default function AdvancedMousepadCustomizer() {
                                 console.log('Capture completed, image length:', finalImage.length);
 
                                 const calculatedPrice = getExactMousepadPrice({
-          mousepadSize,
-          thickness,
-          currency,
-          quantity,
-          rgb: mousepadType === "rgb",
-        });
+                                  mousepadSize,
+                                  thickness,
+                                  currency,
+                                  quantity,
+                                  rgb: mousepadType === "rgb",
+                                });
                                 console.log('Calculated price for cart:', calculatedPrice);
                                 console.log('Price type:', typeof calculatedPrice);
                                 console.log('Is price valid?', !isNaN(calculatedPrice) && calculatedPrice > 0);
@@ -3013,12 +3010,12 @@ export default function AdvancedMousepadCustomizer() {
                                 console.error('Error adding to cart:', error);
                                 // Fallback to base image if capture fails
                                 const fallbackPrice = getExactMousepadPrice({
-          mousepadSize,
-          thickness,
-          currency,
-          quantity,
-          rgb: mousepadType === "rgb",
-        });
+                                  mousepadSize,
+                                  thickness,
+                                  currency,
+                                  quantity,
+                                  rgb: mousepadType === "rgb",
+                                });
                                 console.log('Fallback price for cart:', fallbackPrice);
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
@@ -3039,12 +3036,12 @@ export default function AdvancedMousepadCustomizer() {
                                   },
                                   quantity,
                                   price: parseFloat(getExactMousepadPrice({
-                    mousepadSize,
-                    thickness,
-                    currency,
-                    quantity,
-                    rgb: mousepadType === "rgb",
-                  }).toFixed(2)),
+                                    mousepadSize,
+                                    thickness,
+                                    currency,
+                                    quantity,
+                                    rgb: mousepadType === "rgb",
+                                  }).toFixed(2)),
                                 });
                                 if (toast) {
                                   toast({
