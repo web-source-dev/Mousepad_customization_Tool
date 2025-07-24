@@ -137,6 +137,8 @@ export default function AdvancedMousepadCustomizer() {
   const [mousepadType, setMousepadType] = useState("normal")
   // Set a valid default value for mousepadSize
   const [mousepadSize, setMousepadSize] = useState<keyof typeof MOUSEPAD_SIZES>('300x350');
+  console.log('Default mousepadSize:', mousepadSize);
+  console.log('Available sizes in pricing table:', Object.keys(PRICING_TABLE.USD));
   const [thickness, setThickness] = useState("3mm")
   const [surfaceTexture, setSurfaceTexture] = useState("smooth")
   const [edgeStitching, setEdgeStitching] = useState(false)
@@ -878,9 +880,21 @@ export default function AdvancedMousepadCustomizer() {
 
   // Price calculation logic (copied from PriceCalculator)
   function getMousepadPrice() {
+    console.log('Price calculation debug:', {
+      currency,
+      mousepadSize,
+      thickness,
+      quantity,
+      availableSizes: Object.keys(PRICING_TABLE[currency] || {}),
+      availableThicknesses: Object.keys(PRICING_TABLE[currency]?.[String(mousepadSize)] || {})
+    });
+    
     const basePrice = PRICING_TABLE[currency][String(mousepadSize)]?.[String(thickness)] || 0;
+    console.log('Base price found:', basePrice);
+    
     let subtotal = basePrice * quantity;
     if (quantity > 1) subtotal = subtotal * 0.9; // 10% bulk discount
+    console.log('Final subtotal:', subtotal);
     return subtotal;
   }
 
@@ -2105,6 +2119,9 @@ export default function AdvancedMousepadCustomizer() {
                                 const finalImage = await captureCompleteDesign();
                                 console.log('Capture completed, image length:', finalImage.length);
                                 
+                                const calculatedPrice = getMousepadPrice();
+                                console.log('Calculated price for cart:', calculatedPrice);
+                                
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
@@ -2125,7 +2142,7 @@ export default function AdvancedMousepadCustomizer() {
                                     overlays: appliedOverlays,
                                   },
                                   quantity,
-                                  price: parseFloat(getMousepadPrice().toFixed(2)),
+                                  price: parseFloat(calculatedPrice.toFixed(2)),
                                 });
                                 if (toast) {
                                   toast({
@@ -2137,6 +2154,8 @@ export default function AdvancedMousepadCustomizer() {
                               } catch (error) {
                                 console.error('Error adding to cart:', error);
                                 // Fallback to base image if capture fails
+                                const fallbackPrice = getMousepadPrice();
+                                console.log('Fallback price for cart:', fallbackPrice);
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
