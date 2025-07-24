@@ -113,18 +113,6 @@ export default function CartPage() {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Your Cart</h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              console.log("Manual user info request");
-              if (typeof window !== "undefined" && window.parent) {
-                window.parent.postMessage({ type: "requestUserInfo" }, "*");
-              }
-            }}
-          >
-            Request User Info
-          </Button>
         </div>
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
@@ -256,11 +244,6 @@ export default function CartPage() {
             >
               {checkingOut ? "Processing..." : "Checkout"}
             </Button>
-
-            {/* Debug info - remove this in production */}
-            <div className="mt-2 text-xs text-gray-500">
-              Debug: Items: {items.length} | User: {wixUser ? 'Loaded' : 'Not loaded'} | CheckingOut: {checkingOut ? 'Yes' : 'No'}
-            </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" className="w-full mt-2" disabled={items.length === 0 || clearing} aria-label="Clear Cart">{clearing ? "Clearing..." : "Clear Cart"}</Button>

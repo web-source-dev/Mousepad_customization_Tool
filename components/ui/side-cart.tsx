@@ -59,7 +59,6 @@ export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
           <span>${subtotal.toFixed(2)}</span>
         </div>
         <Button className="w-full mb-2" size="lg" disabled={items.length === 0} onClick={() => { window.location.href = '/cart'; }}>View Cart</Button>
-        <Button className="w-full" size="lg" disabled={items.length === 0}>Checkout</Button>
       </div>
     </div>
   );
