@@ -106,6 +106,15 @@
   .text-gradient-accent {
     color: #60a5fa;
   }
+
+  /* Hide scrollbar but allow scrolling */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
 }
 
 /* Custom styles for curved text */
