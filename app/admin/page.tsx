@@ -329,23 +329,31 @@ export default function AdminPanel() {
         window.addEventListener('message', handleWixMessage);
         console.log('📡 Message listener attached');
         
-        // Send ready signal to parent
-        sendMessageToWix({
-          type: 'IFRAME_READY',
-          data: {
-            adminPanel: true,
-            version: '1.0.0'
+        // Send ready signal to parent with simple data
+        setTimeout(() => {
+          try {
+            sendMessageToWix({
+              type: 'IFRAME_READY',
+              data: {
+                adminPanel: true,
+                version: '1.0.0'
+              },
+              id: Date.now().toString()
+            });
+            
+            // Request user data from Wix
+            requestUserDataFromWix();
+          } catch (error) {
+            console.error('❌ Error sending initial messages:', error);
           }
-        });
-        
-        // Request user data from Wix
-        requestUserDataFromWix();
+        }, 100); // Small delay to ensure everything is ready
       } else {
         console.log('⚠️ Not running in iframe, using mock data');
       }
     } catch (error) {
       console.error('❌ Error initializing Wix communication:', error);
-      throw error;
+      // Don't throw error, just log it and continue with mock data
+      console.log('🔄 Falling back to mock data mode');
     }
   };
 
@@ -412,13 +420,28 @@ export default function AdminPanel() {
     try {
       console.log('📤 Sending message to Wix:', message);
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage(message, '*');
+        // Ensure message is serializable by creating a clean copy
+        const cleanMessage = JSON.parse(JSON.stringify(message));
+        window.parent.postMessage(cleanMessage, '*');
         console.log('✅ Message sent to Wix parent');
       } else {
         console.warn('⚠️ Cannot send message - not in iframe');
       }
     } catch (error) {
       console.error('❌ Error sending message to Wix:', error);
+      // Fallback: try sending a simplified message
+      try {
+        const simplifiedMessage = {
+          type: message.type,
+          data: typeof message.data === 'object' ? { ...message.data } : message.data,
+          id: message.id,
+          timestamp: new Date().toISOString()
+        };
+        window.parent.postMessage(simplifiedMessage, '*');
+        console.log('✅ Simplified message sent to Wix parent');
+      } catch (fallbackError) {
+        console.error('❌ Failed to send even simplified message:', fallbackError);
+      }
     }
   };
 
@@ -495,34 +518,93 @@ export default function AdminPanel() {
     try {
       console.log('📋 Fetch orders response from Wix:', data);
       
-      if (data.orders) {
+      if (data.orders && Array.isArray(data.orders)) {
         console.log('🔄 Transforming orders data...');
         // Transform Wix orders to match our interface
         const transformedOrders: Order[] = data.orders.map((wixOrder: any) => {
-          console.log('📦 Processing order:', wixOrder.id, wixOrder.customerEmail);
-          return {
-            id: wixOrder.id,
-            customerEmail: wixOrder.customerEmail,
-            orderDate: new Date(wixOrder.orderDate),
-            status: wixOrder.status,
-            items: wixOrder.items,
-            subtotal: wixOrder.subtotal,
-            shipping: wixOrder.shipping,
-            tax: wixOrder.tax,
-            total: wixOrder.total,
-            currency: 'USD',
-            userDetails: {
-              email: wixOrder.customerEmail
-            },
-            previewImage: wixOrder.items?.[0]?.image || ''
-          };
-        });
+          try {
+            console.log('📦 Processing order:', wixOrder.id, wixOrder.customerEmail);
+            
+            // Ensure all data is serializable
+            const cleanItems = Array.isArray(wixOrder.items) ? wixOrder.items.map((item: any) => ({
+              id: String(item.id || ''),
+              name: String(item.name || ''),
+              image: String(item.image || ''),
+              specs: {
+                size: String(item.specs?.size || '400x800'),
+                thickness: String(item.specs?.thickness || '4mm'),
+                type: String(item.specs?.type || 'standard'),
+                rgb: item.specs?.rgb ? {
+                  mode: String(item.specs.rgb.mode || 'static'),
+                  color: String(item.specs.rgb.color || '#ffffff'),
+                  brightness: Number(item.specs.rgb.brightness || 100),
+                  animationSpeed: Number(item.specs.rgb.animationSpeed || 50)
+                } : undefined,
+                text: Array.isArray(item.specs?.text) ? item.specs.text.map((t: any) => ({
+                  id: Number(t.id || 0),
+                  text: String(t.text || ''),
+                  type: String(t.type || 'text'),
+                  color: String(t.color || '#000000'),
+                  font: String(t.font || 'Arial'),
+                  size: Number(t.size || 72),
+                  position: {
+                    x: Number(t.position?.x || 50),
+                    y: Number(t.position?.y || 50)
+                  },
+                  rotation: Number(t.rotation || 0),
+                  opacity: Number(t.opacity || 100),
+                  shadow: {
+                    enabled: Boolean(t.shadow?.enabled || false),
+                    color: String(t.shadow?.color || '#000000'),
+                    blur: Number(t.shadow?.blur || 4),
+                    x: Number(t.shadow?.x || 2),
+                    y: Number(t.shadow?.y || 2)
+                  },
+                  outline: {
+                    enabled: Boolean(t.outline?.enabled || false),
+                    color: String(t.outline?.color || '#ffffff'),
+                    width: Number(t.outline?.width || 1)
+                  },
+                  gradient: {
+                    enabled: Boolean(t.gradient?.enabled || false),
+                    direction: String(t.gradient?.direction || 'horizontal'),
+                    from: String(t.gradient?.from || '#ff0000'),
+                    to: String(t.gradient?.to || '#0000ff')
+                  }
+                })) : [],
+                overlays: Array.isArray(item.specs?.overlays) ? item.specs.overlays.map((o: any) => String(o)) : []
+              },
+              quantity: Number(item.quantity || 1),
+              price: Number(item.price || 0)
+            })) : [];
+            
+            return {
+              id: String(wixOrder.id || ''),
+              customerEmail: String(wixOrder.customerEmail || ''),
+              orderDate: new Date(wixOrder.orderDate || Date.now()),
+              status: wixOrder.status || 'pending',
+              items: cleanItems,
+              subtotal: Number(wixOrder.subtotal || 0),
+              shipping: Number(wixOrder.shipping || 0),
+              tax: Number(wixOrder.tax || 0),
+              total: Number(wixOrder.total || 0),
+              currency: 'USD',
+              userDetails: {
+                email: String(wixOrder.customerEmail || '')
+              },
+              previewImage: String(wixOrder.items?.[0]?.image || '')
+            };
+          } catch (itemError) {
+            console.error('❌ Error processing order item:', itemError);
+            return null;
+          }
+        }).filter(Boolean) as Order[];
         
         console.log('✅ Transformed orders:', transformedOrders.length);
         setOrders(transformedOrders);
         setFilteredOrders(transformedOrders);
       } else {
-        console.warn('⚠️ No orders data received from Wix');
+        console.warn('⚠️ No orders data received from Wix or invalid format');
       }
     } catch (error) {
       console.error('❌ Error handling fetch orders response:', error);
@@ -534,27 +616,34 @@ export default function AdminPanel() {
     try {
       console.log('👥 Fetch users response from Wix:', data);
       
-      if (data.users) {
+      if (data.users && Array.isArray(data.users)) {
         console.log('🔄 Transforming users data...');
         // Transform Wix users to match our interface
         const transformedUsers: User[] = data.users.map((wixUser: any) => {
-          console.log('👤 Processing user:', wixUser.id, wixUser.email);
-          return {
-            id: wixUser.id,
-            email: wixUser.email,
-            totalOrders: 0,
-            totalSpent: 0,
-            lastOrderDate: new Date(wixUser.lastLoginDate),
-            joinDate: new Date(wixUser.createdDate),
-            status: wixUser.isActive ? 'active' : 'inactive'
-          };
-        });
+          try {
+            console.log('👤 Processing user:', wixUser.id, wixUser.email);
+            
+            // Ensure all data is serializable
+            return {
+              id: String(wixUser.id || ''),
+              email: String(wixUser.email || ''),
+              totalOrders: 0, // Default value since not in Wix data
+              totalSpent: 0, // Default value since not in Wix data
+              lastOrderDate: new Date(wixUser.lastLoginDate || wixUser.createdDate || Date.now()),
+              joinDate: new Date(wixUser.createdDate || Date.now()),
+              status: wixUser.isActive !== false ? 'active' : 'inactive'
+            };
+          } catch (userError) {
+            console.error('❌ Error processing user:', userError);
+            return null;
+          }
+        }).filter(Boolean) as User[];
         
         console.log('✅ Transformed users:', transformedUsers.length);
         setUsers(transformedUsers);
         setFilteredUsers(transformedUsers);
       } else {
-        console.warn('⚠️ No users data received from Wix');
+        console.warn('⚠️ No users data received from Wix or invalid format');
       }
     } catch (error) {
       console.error('❌ Error handling fetch users response:', error);
@@ -624,17 +713,16 @@ export default function AdminPanel() {
           order.id === selectedOrder.id ? updatedOrder : order
         ));
         
-        // Send update to Wix
+        // Send update to Wix with clean data
         console.log('📤 Sending update to Wix...');
         sendMessageToWix({
           type: 'ADMIN_ACTION',
           data: {
             action: 'UPDATE_ORDER',
-            orderId: selectedOrder.id,
-            updates: {
-              status: updateForm.status
-            }
-          }
+            orderId: String(selectedOrder.id),
+            status: String(updateForm.status)
+          },
+          id: Date.now().toString()
         });
         
         setIsUpdateDialogOpen(false);
@@ -654,15 +742,15 @@ export default function AdminPanel() {
       setSelectedUser(user);
       setIsUserDialogOpen(true);
       
-      // Send user view action to Wix
+      // Send user view action to Wix with clean data
       console.log('📤 Sending user view action to Wix...');
       sendMessageToWix({
         type: 'ADMIN_ACTION',
         data: {
           action: 'VIEW_USER',
-          userId: user.id,
-          userData: user
-        }
+          userId: String(user.id)
+        },
+        id: Date.now().toString()
       });
     } catch (error) {
       console.error('❌ Error viewing user:', error);
@@ -677,10 +765,11 @@ export default function AdminPanel() {
         type: 'ADMIN_ACTION',
         data: {
           action: 'SEND_EMAIL',
-          userId: user.id,
-          userEmail: user.email,
-          userName: user.email
-        }
+          userId: String(user.id),
+          userEmail: String(user.email),
+          userName: String(user.email)
+        },
+        id: Date.now().toString()
       });
     } catch (error) {
       console.error('❌ Error sending email:', error);
