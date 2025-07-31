@@ -944,30 +944,52 @@ export default function AdminPanel() {
     });
   }, [orders, ordersLoaded, usersLoaded, dataLoaded, loading]);
 
+  // Ensure filteredOrders is set when orders are loaded and no filtering is applied
+  useEffect(() => {
+    if (ordersLoaded && !loading && orders.length > 0 && !searchTerm && statusFilter === 'all') {
+      console.log('🎯 Setting filteredOrders to all orders (no filters applied)');
+      setFilteredOrders(orders);
+    }
+  }, [orders, ordersLoaded, loading, searchTerm, statusFilter]);
+
   useEffect(() => {
     try {
-      console.log('🔍 Filtering orders...', { searchTerm, statusFilter, ordersCount: orders.length });
+      console.log('🔍 Filtering orders...', { 
+        searchTerm, 
+        statusFilter, 
+        ordersCount: orders.length,
+        ordersLoaded,
+        dataLoaded,
+        loading 
+      });
+      
+      // Don't filter if orders are not loaded yet
+      if (!ordersLoaded || loading) {
+        console.log('⏳ Skipping filtering - orders not ready yet');
+        return;
+      }
+      
       let filtered = orders;
 
-              // Apply search filter
-        if (searchTerm) {
-          filtered = filtered.filter(order =>
-            order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.id.toLowerCase().includes(searchTerm.toLowerCase())
-          );
-        }
+      // Apply search filter
+      if (searchTerm) {
+        filtered = filtered.filter(order =>
+          order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.id.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
 
       // Apply status filter
       if (statusFilter !== 'all') {
         filtered = filtered.filter(order => order.status === statusFilter);
       }
 
-      console.log('✅ Orders filtered:', filtered.length);
+      console.log('✅ Orders filtered:', filtered.length, 'from', orders.length, 'total orders');
       setFilteredOrders(filtered);
     } catch (error) {
       console.error('❌ Error filtering orders:', error);
     }
-  }, [orders, searchTerm, statusFilter]);
+  }, [orders, searchTerm, statusFilter, ordersLoaded, loading]);
 
   useEffect(() => {
     try {
@@ -1281,7 +1303,7 @@ export default function AdminPanel() {
             <p className="text-gray-600 mt-2">Manage orders and customers</p>
             {/* Debug info */}
             <div className="text-xs text-gray-500 mt-1">
-              Debug: Orders: {orders.length} | Users: {users.length} | 
+              Debug: Orders: {orders.length} | FilteredOrders: {filteredOrders.length} | Users: {users.length} | 
               OrdersLoaded: {ordersLoaded ? '✅' : '❌'} | 
               UsersLoaded: {usersLoaded ? '✅' : '❌'} | 
               DataLoaded: {dataLoaded ? '✅' : '❌'} | 
@@ -1380,115 +1402,133 @@ export default function AdminPanel() {
 
             {/* Orders List */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {filteredOrders.map((order) => (
-                <Card key={order.id} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardContent className="p-6">
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
+              {filteredOrders.length === 0 ? (
+                <div className="col-span-2 text-center py-8">
+                  <div className="text-gray-500">
+                    {orders.length === 0 ? (
                       <div>
-                        <h3 className="font-bold text-lg text-gray-900">Order #{order.id}</h3>
-                        <p className="text-sm text-gray-500">{format(order.orderDate, 'MMM dd, yyyy HH:mm')}</p>
+                        <p className="text-lg font-medium mb-2">No orders found</p>
+                        <p className="text-sm">Orders will appear here once they are loaded from the database.</p>
                       </div>
-                      <Badge variant="outline" className={statusColors[order.status]}>
-                        {statusIcons[order.status]}
-                        {order.status}
-                      </Badge>
-                    </div>
-
-                    {/* Customer Info */}
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span className="font-medium text-sm">Customer Email</span>
-                      </div>
-                      <p className="text-sm text-gray-700">{order.customerEmail}</p>
-                    </div>
-
-                                         {/* Order Summary */}
-                     <div className="mb-4">
-                       <div className="flex items-center gap-2 mb-2">
-                         <Package className="h-4 w-4 text-gray-500" />
-                         <span className="font-medium text-sm">Order Details</span>
-                       </div>
-                       {order.items.map((item, index) => (
-                         <div key={index} className="space-y-2 text-sm">
-                           <div className="flex justify-between">
-                             <span className="font-medium">{item.name}</span>
-                             <span className="text-gray-600">Qty: {item.quantity}</span>
-                           </div>
-                           <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                             <div>Size: {item.specs.size}</div>
-                             <div>Thickness: {item.specs.thickness}</div>
-                             <div>Type: {item.specs.type}</div>
-                             {item.specs.rgb && (
-                               <div>RGB: {item.specs.rgb.mode}</div>
-                             )}
-                           </div>
-                           {item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0 && (
-                             <div className="text-xs text-gray-600">
-                               Text: {item.specs.text.map(t => t.text).join(', ')}
-                             </div>
-                           )}
-                           {item.specs.overlays && item.specs.overlays.length > 0 && (
-                             <div className="text-xs text-gray-600">
-                               Overlays: {item.specs.overlays.length} applied
-                             </div>
-                           )}
-                         </div>
-                       ))}
-                     </div>
-
-                     {/* Generated Mousepad Preview */}
-                     <div className="mb-4">
-                       <div className="flex items-center gap-2 mb-2">
-                         <Eye className="h-4 w-4 text-gray-500" />
-                         <span className="font-medium text-sm">Custom Design Preview</span>
-                       </div>
-                       <div className="flex justify-center">
-                         <img
-                           src={order.previewImage || '/placeholder.svg'}
-                           alt={`Mousepad design for order ${order.id}`}
-                           className="w-48 h-32 object-contain border border-gray-200 rounded-lg shadow-sm"
-                           onError={(e) => {
-                             console.warn('⚠️ Failed to load preview image for order:', order.id);
-                             e.currentTarget.src = '/placeholder.svg';
-                           }}
-                         />
-                       </div>
-                     </div>
-
-                    {/* Price and Actions */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    ) : (
                       <div>
-                        <p className="text-lg font-bold text-gray-900">${order.total.toFixed(2)}</p>
-                        <p className="text-xs text-gray-500">
-                          Subtotal: ${order.subtotal.toFixed(2)} | Tax: ${order.tax.toFixed(2)} | Shipping: ${order.shipping.toFixed(2)}
-                        </p>
+                        <p className="text-lg font-medium mb-2">No orders match your filters</p>
+                        <p className="text-sm">Try adjusting your search or status filter.</p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleUpdateOrder(order)}
-                          size="sm"
-                          variant="outline"
-                          className="text-xs"
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
-                        <Button
-                          onClick={() => handleDownloadImage(order)}
-                          size="sm"
-                          variant="outline"
-                          className="text-xs"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download
-                        </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                filteredOrders.map((order) => (
+                  <Card key={order.id} className="hover:shadow-lg transition-shadow duration-200">
+                    <CardContent className="p-6">
+                      {/* Header */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900">Order #{order.id}</h3>
+                          <p className="text-sm text-gray-500">{format(order.orderDate, 'MMM dd, yyyy HH:mm')}</p>
+                        </div>
+                        <Badge variant="outline" className={statusColors[order.status]}>
+                          {statusIcons[order.status]}
+                          {order.status}
+                        </Badge>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {/* Customer Info */}
+                      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <User className="h-4 w-4 text-gray-500" />
+                          <span className="font-medium text-sm">Customer Email</span>
+                        </div>
+                        <p className="text-sm text-gray-700">{order.customerEmail}</p>
+                      </div>
+
+                      {/* Order Summary */}
+                      <div className="mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Package className="h-4 w-4 text-gray-500" />
+                          <span className="font-medium text-sm">Order Details</span>
+                        </div>
+                        {order.items.map((item, index) => (
+                          <div key={index} className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{item.name}</span>
+                              <span className="text-gray-600">Qty: {item.quantity}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                              <div>Size: {item.specs.size}</div>
+                              <div>Thickness: {item.specs.thickness}</div>
+                              <div>Type: {item.specs.type}</div>
+                              {item.specs.rgb && (
+                                <div>RGB: {item.specs.rgb.mode}</div>
+                              )}
+                            </div>
+                            {item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0 && (
+                              <div className="text-xs text-gray-600">
+                                Text: {item.specs.text.map(t => t.text).join(', ')}
+                              </div>
+                            )}
+                            {item.specs.overlays && item.specs.overlays.length > 0 && (
+                              <div className="text-xs text-gray-600">
+                                Overlays: {item.specs.overlays.length} applied
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Generated Mousepad Preview */}
+                      <div className="mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Eye className="h-4 w-4 text-gray-500" />
+                          <span className="font-medium text-sm">Custom Design Preview</span>
+                        </div>
+                        <div className="flex justify-center">
+                          <img
+                            src={order.previewImage || '/placeholder.svg'}
+                            alt={`Mousepad design for order ${order.id}`}
+                            className="w-48 h-32 object-contain border border-gray-200 rounded-lg shadow-sm"
+                            onError={(e) => {
+                              console.warn('⚠️ Failed to load preview image for order:', order.id);
+                              e.currentTarget.src = '/placeholder.svg';
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Price and Actions */}
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <div>
+                          <p className="text-lg font-bold text-gray-900">${order.total.toFixed(2)}</p>
+                          <p className="text-xs text-gray-500">
+                            Subtotal: ${order.subtotal.toFixed(2)} | Tax: ${order.tax.toFixed(2)} | Shipping: ${order.shipping.toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleUpdateOrder(order)}
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            onClick={() => handleDownloadImage(order)}
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabsContent>
 
