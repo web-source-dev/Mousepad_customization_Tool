@@ -258,6 +258,8 @@ export default function AdminPanel() {
   const [wixConnected, setWixConnected] = useState(false);
   const [wixUserData, setWixUserData] = useState<any>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [showReloadButton, setShowReloadButton] = useState(false);
 
@@ -306,8 +308,8 @@ export default function AdminPanel() {
   useEffect(() => {
     try {
       // Prevent multiple data loading attempts
-      if (dataLoaded) {
-        console.log('✅ Data already loaded, skipping...');
+      if (ordersLoaded && usersLoaded) {
+        console.log('✅ All data already loaded, skipping...');
         return;
       }
       
@@ -342,7 +344,7 @@ export default function AdminPanel() {
         timeoutRef.current = null;
       }
     };
-  }, [wixConnected, dataLoaded]);
+  }, [wixConnected, ordersLoaded, usersLoaded]);
 
   // Initialize Wix iframe communication
   const initializeWixCommunication = () => {
@@ -632,13 +634,21 @@ export default function AdminPanel() {
         console.log('✅ Transformed orders:', transformedOrders.length);
         setOrders(transformedOrders);
         setFilteredOrders(transformedOrders);
-        setDataLoaded(true);
+        setOrdersLoaded(true);
         
-        // Clear timeout since data was successfully loaded
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-          console.log('⏰ Cleared timeout - data loaded successfully');
+        // Check if both orders and users are loaded
+        if (usersLoaded) {
+          setDataLoaded(true);
+          console.log('🎉 All data loaded successfully!');
+          
+          // Clear timeout since all data was successfully loaded
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+            console.log('⏰ Cleared timeout - all data loaded successfully');
+          }
+        } else {
+          console.log('📋 Orders loaded, waiting for users...');
         }
       } else {
         console.warn('⚠️ No orders data received from Wix or invalid format');
@@ -679,13 +689,21 @@ export default function AdminPanel() {
         console.log('✅ Transformed users:', transformedUsers.length);
         setUsers(transformedUsers);
         setFilteredUsers(transformedUsers);
-        setDataLoaded(true);
+        setUsersLoaded(true);
         
-        // Clear timeout since data was successfully loaded
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-          console.log('⏰ Cleared timeout - data loaded successfully');
+        // Check if both orders and users are loaded
+        if (ordersLoaded) {
+          setDataLoaded(true);
+          console.log('🎉 All data loaded successfully!');
+          
+          // Clear timeout since all data was successfully loaded
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+            console.log('⏰ Cleared timeout - all data loaded successfully');
+          }
+        } else {
+          console.log('👥 Users loaded, waiting for orders...');
         }
       } else {
         console.warn('⚠️ No users data received from Wix or invalid format');
@@ -824,6 +842,8 @@ export default function AdminPanel() {
   const reloadData = () => {
     console.log('🔄 Reloading data...');
     setDataLoaded(false);
+    setOrdersLoaded(false);
+    setUsersLoaded(false);
     setShowReloadButton(false);
     setLoading(true);
     
@@ -871,12 +891,15 @@ export default function AdminPanel() {
             }));
             setOrders(ordersWithDates);
             setFilteredOrders(ordersWithDates);
+            setOrdersLoaded(true);
             
             // Generate mock users
             console.log('👥 Loading mock users...');
             const mockUsers = generateMockUsers();
             setUsers(mockUsers);
             setFilteredUsers(mockUsers);
+            setUsersLoaded(true);
+            setDataLoaded(true);
             return; // Exit early if API call succeeded
           } else {
             console.warn('⚠️ API returned error, showing reload button');
@@ -895,16 +918,31 @@ export default function AdminPanel() {
         setFilteredOrders(mockOrders);
         setUsers(mockUsers);
         setFilteredUsers(mockUsers);
+        
+        // Set loading states for mock data
+        setOrdersLoaded(true);
+        setUsersLoaded(true);
+        setDataLoaded(true);
       }
     } catch (error) {
       console.error('❌ Error loading data:', error);
       setShowReloadButton(true);
     } finally {
       setLoading(false);
-      setDataLoaded(true);
       console.log('✅ Data loading completed');
     }
   };
+
+  // Monitor orders state changes
+  useEffect(() => {
+    console.log('📊 Orders state updated:', { 
+      ordersCount: orders.length, 
+      ordersLoaded, 
+      usersLoaded, 
+      dataLoaded,
+      loading 
+    });
+  }, [orders, ordersLoaded, usersLoaded, dataLoaded, loading]);
 
   useEffect(() => {
     try {
@@ -1241,6 +1279,14 @@ export default function AdminPanel() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
             <p className="text-gray-600 mt-2">Manage orders and customers</p>
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mt-1">
+              Debug: Orders: {orders.length} | Users: {users.length} | 
+              OrdersLoaded: {ordersLoaded ? '✅' : '❌'} | 
+              UsersLoaded: {usersLoaded ? '✅' : '❌'} | 
+              DataLoaded: {dataLoaded ? '✅' : '❌'} | 
+              Loading: {loading ? '✅' : '❌'}
+            </div>
           </div>
         </div>
 
