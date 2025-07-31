@@ -65,23 +65,11 @@ interface OrderItem {
 }
 
 interface UserDetails {
-  firstName: string;
-  lastName: string;
   email: string;
-  phone: string;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
-  additionalNotes?: string;
 }
 
 interface Order {
   id: string;
-  customerName: string;
   customerEmail: string;
   orderDate: Date;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -90,26 +78,14 @@ interface Order {
   shipping: number;
   tax: number;
   total: number;
-  currency: 'USD' | 'SGD';
+  currency: 'USD';
   userDetails: UserDetails;
   previewImage: string;
-  notes?: string;
-  trackingNumber?: string;
 }
 
 interface User {
   id: string;
-  firstName: string;
-  lastName: string;
   email: string;
-  phone: string;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
   totalOrders: number;
   totalSpent: number;
   lastOrderDate: Date;
@@ -120,7 +96,7 @@ interface User {
 // Mock data generator
 const generateMockOrders = (): Order[] => {
   const themes = ['Gaming', 'Abstract', 'Nature', 'Space', 'Minimalist'];
-  const sizes = ['Small (300x250mm)', 'Medium (400x300mm)', 'Large (500x400mm)', 'Extra Large (600x450mm)'];
+  const sizes = ['400x800', '500x800', '500x1000', '600x800', '600x1000', '800x800', '900x400', '1000x500', '1000x400'];
   const statuses: Order['status'][] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
   const names = [
     'John Smith', 'Emma Johnson', 'Michael Brown', 'Sarah Davis', 'David Wilson',
@@ -130,29 +106,28 @@ const generateMockOrders = (): Order[] => {
   return Array.from({ length: 25 }, (_, i) => {
     const theme = themes[Math.floor(Math.random() * themes.length)];
     const size = sizes[Math.floor(Math.random() * sizes.length)];
-    const status = statuses[Math.floor(Math.random() * statuses.length)];
-    const customerName = names[Math.floor(Math.random() * names.length)];
-    const [firstName, lastName] = customerName.split(' ');
-    
-    const subtotal = Math.floor(Math.random() * 50) + 25;
-    const shipping = subtotal > 50 ? 0 : 5.99;
-    const tax = subtotal * 0.08;
-    const total = subtotal + shipping + tax;
+    // Ensure more pending orders for testing (40% pending, 20% each for others)
+    const status = i < 10 ? 'pending' : statuses[Math.floor(Math.random() * statuses.length)];
+            const customerEmail = `customer${i + 1}@example.com`;
+        
+        const subtotal = Math.floor(Math.random() * 50) + 25;
+        const shipping = subtotal > 50 ? 0 : 5.99;
+        const tax = subtotal * 0.08;
+        const total = subtotal + shipping + tax;
 
-    return {
-      id: `ORD-${String(i + 1).padStart(4, '0')}`,
-      customerName,
-      customerEmail: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+        return {
+          id: `ORD-${String(i + 1).padStart(4, '0')}`,
+          customerEmail,
       orderDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
       status,
       items: [{
         id: `item-${i}`,
         name: `Custom ${theme} Mousepad`,
         image: `data:image/svg+xml;base64,${btoa(`
-          <svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+          <svg width="400" height="800" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="${theme === 'Gaming' ? '#1a1a2e' : theme === 'Nature' ? '#2d5016' : theme === 'Space' ? '#0a0a23' : theme === 'Abstract' ? '#4a148c' : '#f5f5f5'}"/>
-            <text x="150" y="100" text-anchor="middle" fill="white" font-family="Arial" font-size="16">${theme} Design</text>
-            <text x="150" y="120" text-anchor="middle" fill="white" font-family="Arial" font-size="12">${size}</text>
+            <text x="200" y="400" text-anchor="middle" fill="white" font-family="Arial" font-size="24">${theme} Design</text>
+            <text x="200" y="430" text-anchor="middle" fill="white" font-family="Arial" font-size="18">${size}</text>
           </svg>
         `)}`,
         specs: {
@@ -207,52 +182,22 @@ const generateMockOrders = (): Order[] => {
       tax,
       total,
       currency: 'USD' as const,
-      userDetails: {
-        firstName,
-        lastName,
-        email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
-        phone: `+1-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-        address: {
-          street: `${Math.floor(Math.random() * 9999) + 1} Main St`,
-          city: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][Math.floor(Math.random() * 5)],
-          state: ['NY', 'CA', 'IL', 'TX', 'AZ'][Math.floor(Math.random() * 5)],
-          zipCode: `${Math.floor(Math.random() * 90000) + 10000}`,
-          country: 'United States'
-        },
-        additionalNotes: Math.random() > 0.7 ? 'Please deliver before 5 PM' : undefined
-      },
       previewImage: `data:image/svg+xml;base64,${btoa(`
-        <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:${theme === 'Gaming' ? '#1a1a2e' : theme === 'Nature' ? '#2d5016' : theme === 'Space' ? '#0a0a23' : theme === 'Abstract' ? '#4a148c' : '#f5f5f5'};stop-opacity:1" />
-              <stop offset="100%" style="stop-color:${theme === 'Gaming' ? '#16213e' : theme === 'Nature' ? '#1b4332' : theme === 'Space' ? '#1e1b4b' : theme === 'Abstract' ? '#7c3aed' : '#e5e7eb'};stop-opacity:1" />
-            </linearGradient>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grad1)"/>
-          <circle cx="100" cy="80" r="20" fill="${theme === 'Gaming' ? '#ff6b6b' : theme === 'Nature' ? '#4ade80' : theme === 'Space' ? '#6366f1' : theme === 'Abstract' ? '#f59e0b' : '#6b7280'}" opacity="0.8"/>
-          <circle cx="300" cy="120" r="15" fill="${theme === 'Gaming' ? '#4ecdc4' : theme === 'Nature' ? '#22c55e' : theme === 'Space' ? '#8b5cf6' : theme === 'Abstract' ? '#ec4899' : '#9ca3af'}" opacity="0.6"/>
-          <text x="200" y="150" text-anchor="middle" fill="white" font-family="Arial" font-size="18" font-weight="bold">${theme} Mousepad</text>
-          <text x="200" y="170" text-anchor="middle" fill="white" font-family="Arial" font-size="14">${size}</text>
-          <text x="200" y="190" text-anchor="middle" fill="white" font-family="Arial" font-size="12">Custom Design</text>
-          ${Math.random() > 0.5 ? `<rect x="50" y="220" width="300" height="2" fill="${theme === 'Gaming' ? '#ff6b6b' : theme === 'Nature' ? '#4ade80' : theme === 'Space' ? '#6366f1' : theme === 'Abstract' ? '#f59e0b' : '#6b7280'}" opacity="0.5"/>` : ''}
+        <svg width="400" height="800" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="${theme === 'Gaming' ? '#1a1a2e' : theme === 'Nature' ? '#2d5016' : theme === 'Space' ? '#0a0a23' : theme === 'Abstract' ? '#4a148c' : '#f5f5f5'}"/>
+          <text x="200" y="400" text-anchor="middle" fill="white" font-family="Arial" font-size="24">${theme} Design</text>
+          <text x="200" y="430" text-anchor="middle" fill="white" font-family="Arial" font-size="18">${size}</text>
         </svg>
       `)}`,
-      notes: Math.random() > 0.7 ? 'Customer requested expedited shipping' : undefined,
-      trackingNumber: status === 'shipped' || status === 'delivered' ? `TRK${Math.floor(Math.random() * 900000) + 100000}` : undefined
+      userDetails: {
+        email: customerEmail
+      }
     };
   });
 };
 
 const generateMockUsers = (): User[] => {
-  const names = [
-    'John Smith', 'Emma Johnson', 'Michael Brown', 'Sarah Davis', 'David Wilson',
-    'Lisa Anderson', 'James Taylor', 'Jennifer Martinez', 'Robert Garcia', 'Amanda Rodriguez',
-    'Christopher Lee', 'Jessica White', 'Daniel Clark', 'Ashley Hall', 'Matthew Lewis'
-  ];
-
-  return names.map((name, i) => {
-    const [firstName, lastName] = name.split(' ');
+  return Array.from({ length: 15 }, (_, i) => {
     const totalOrders = Math.floor(Math.random() * 10) + 1;
     const totalSpent = totalOrders * (Math.floor(Math.random() * 100) + 25);
     const lastOrderDate = new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000);
@@ -260,17 +205,7 @@ const generateMockUsers = (): User[] => {
 
     return {
       id: `USER-${String(i + 1).padStart(4, '0')}`,
-      firstName,
-      lastName,
-      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
-      phone: `+1-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-      address: {
-        street: `${Math.floor(Math.random() * 9999) + 1} Main St`,
-        city: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][Math.floor(Math.random() * 5)],
-        state: ['NY', 'CA', 'IL', 'TX', 'AZ'][Math.floor(Math.random() * 5)],
-        zipCode: `${Math.floor(Math.random() * 90000) + 10000}`,
-        country: 'United States'
-      },
+      email: `user${i + 1}@example.com`,
       totalOrders,
       totalSpent,
       lastOrderDate,
@@ -316,9 +251,7 @@ export default function AdminPanel() {
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [updateForm, setUpdateForm] = useState({
-    status: '',
-    notes: '',
-    trackingNumber: ''
+    status: ''
   });
   
   // Wix communication state
@@ -569,7 +502,6 @@ export default function AdminPanel() {
           console.log('📦 Processing order:', wixOrder.id, wixOrder.customerEmail);
           return {
             id: wixOrder.id,
-            customerName: wixOrder.customerName,
             customerEmail: wixOrder.customerEmail,
             orderDate: new Date(wixOrder.orderDate),
             status: wixOrder.status,
@@ -580,21 +512,9 @@ export default function AdminPanel() {
             total: wixOrder.total,
             currency: 'USD',
             userDetails: {
-              firstName: '',
-              lastName: '',
-              email: wixOrder.customerEmail,
-              phone: '',
-              address: {
-                street: '',
-                city: '',
-                state: '',
-                zipCode: '',
-                country: ''
-              }
+              email: wixOrder.customerEmail
             },
-            previewImage: wixOrder.items?.[0]?.image || '',
-            notes: wixOrder.notes,
-            trackingNumber: wixOrder.trackingNumber
+            previewImage: wixOrder.items?.[0]?.image || ''
           };
         });
         
@@ -621,17 +541,7 @@ export default function AdminPanel() {
           console.log('👤 Processing user:', wixUser.id, wixUser.email);
           return {
             id: wixUser.id,
-            firstName: wixUser.firstName,
-            lastName: wixUser.lastName,
             email: wixUser.email,
-            phone: '',
-            address: {
-              street: '',
-              city: '',
-              state: '',
-              zipCode: '',
-              country: ''
-            },
             totalOrders: 0,
             totalSpent: 0,
             lastOrderDate: new Date(wixUser.lastLoginDate),
@@ -689,9 +599,7 @@ export default function AdminPanel() {
       console.log('💾 Saving order update:', selectedOrder.id, updateForm);
       const updatedOrder = {
         ...selectedOrder,
-        status: updateForm.status as Order['status'],
-        notes: updateForm.notes,
-        trackingNumber: updateForm.trackingNumber
+        status: updateForm.status as Order['status']
       };
 
       // Make API call to update order
@@ -703,9 +611,7 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({
           orderId: selectedOrder.id,
-          status: updateForm.status,
-          notes: updateForm.notes,
-          trackingNumber: updateForm.trackingNumber
+          status: updateForm.status
         }),
       });
 
@@ -726,9 +632,7 @@ export default function AdminPanel() {
             action: 'UPDATE_ORDER',
             orderId: selectedOrder.id,
             updates: {
-              status: updateForm.status,
-              notes: updateForm.notes,
-              trackingNumber: updateForm.trackingNumber
+              status: updateForm.status
             }
           }
         });
@@ -775,7 +679,7 @@ export default function AdminPanel() {
           action: 'SEND_EMAIL',
           userId: user.id,
           userEmail: user.email,
-          userName: `${user.firstName} ${user.lastName}`
+          userName: user.email
         }
       });
     } catch (error) {
@@ -834,14 +738,13 @@ export default function AdminPanel() {
       console.log('🔍 Filtering orders...', { searchTerm, statusFilter, ordersCount: orders.length });
       let filtered = orders;
 
-      // Apply search filter
-      if (searchTerm) {
-        filtered = filtered.filter(order =>
-          order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.id.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
+              // Apply search filter
+        if (searchTerm) {
+          filtered = filtered.filter(order =>
+            order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.id.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
 
       // Apply status filter
       if (statusFilter !== 'all') {
@@ -863,7 +766,6 @@ export default function AdminPanel() {
       // Apply user search filter
       if (userSearchTerm) {
         filtered = filtered.filter(user =>
-          `${user.firstName} ${user.lastName}`.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
           user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
           user.id.toLowerCase().includes(userSearchTerm.toLowerCase())
         );
@@ -876,12 +778,145 @@ export default function AdminPanel() {
     }
   }, [users, userSearchTerm]);
 
-  const handleDownloadImage = (order: Order) => {
+  const generateMousepadImage = async (order: Order): Promise<string> => {
+    try {
+      console.log('🎨 Generating mousepad image for order:', order.id);
+      
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Canvas context not available');
+      }
+
+      // Set canvas size based on mousepad size
+      const sizeMap: { [key: string]: { width: number; height: number } } = {
+        '400x800': { width: 400, height: 800 },
+        '500x800': { width: 500, height: 800 },
+        '500x1000': { width: 500, height: 1000 },
+        '600x800': { width: 600, height: 800 },
+        '600x1000': { width: 600, height: 1000 },
+        '800x800': { width: 800, height: 800 },
+        '900x400': { width: 900, height: 400 },
+        '1000x500': { width: 1000, height: 500 },
+        '1000x400': { width: 1000, height: 400 }
+      };
+
+      const item = order.items[0];
+      const size = item.specs.size;
+      const dimensions = sizeMap[size] || { width: 400, height: 800 };
+      
+      canvas.width = dimensions.width;
+      canvas.height = dimensions.height;
+
+      // Fill background based on type
+      if (item.specs.type === 'rgb') {
+        // Create gradient background for RGB mousepads
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        if (item.specs.rgb?.mode === 'rainbow') {
+          gradient.addColorStop(0, '#ff0000');
+          gradient.addColorStop(0.17, '#ff8000');
+          gradient.addColorStop(0.33, '#ffff00');
+          gradient.addColorStop(0.5, '#00ff00');
+          gradient.addColorStop(0.67, '#0080ff');
+          gradient.addColorStop(0.83, '#8000ff');
+          gradient.addColorStop(1, '#ff0080');
+        } else {
+          const color = item.specs.rgb?.color || '#ffffff';
+          gradient.addColorStop(0, color);
+          gradient.addColorStop(1, color);
+        }
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      } else {
+        // Solid color background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Draw text elements
+      if (item.specs.text && Array.isArray(item.specs.text)) {
+        item.specs.text.forEach((textElement) => {
+          const x = (textElement.position.x / 100) * canvas.width;
+          const y = (textElement.position.y / 100) * canvas.height;
+          
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate((textElement.rotation * Math.PI) / 180);
+          
+          // Set font
+          const fontSize = (textElement.size / 100) * Math.min(canvas.width, canvas.height);
+          ctx.font = `${fontSize}px ${textElement.font}`;
+          
+          // Apply opacity
+          ctx.globalAlpha = textElement.opacity / 100;
+          
+          // Draw shadow if enabled
+          if (textElement.shadow?.enabled) {
+            ctx.shadowColor = textElement.shadow.color;
+            ctx.shadowBlur = textElement.shadow.blur;
+            ctx.shadowOffsetX = textElement.shadow.x;
+            ctx.shadowOffsetY = textElement.shadow.y;
+          }
+          
+          // Draw outline if enabled
+          if (textElement.outline?.enabled) {
+            ctx.strokeStyle = textElement.outline.color;
+            ctx.lineWidth = textElement.outline.width;
+            ctx.strokeText(textElement.text, 0, 0);
+          }
+          
+          // Draw main text
+          ctx.fillStyle = textElement.color;
+          ctx.fillText(textElement.text, 0, 0);
+          
+          ctx.restore();
+        });
+      }
+
+      // Draw overlays if available
+      if (item.specs.overlays && item.specs.overlays.length > 0) {
+        for (const overlayData of item.specs.overlays) {
+          try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+              img.src = overlayData;
+            });
+            
+            // Draw overlay in center
+            const overlayWidth = img.width * 0.3; // Scale down overlay
+            const overlayHeight = img.height * 0.3;
+            const overlayX = (canvas.width - overlayWidth) / 2;
+            const overlayY = (canvas.height - overlayHeight) / 2;
+            
+            ctx.drawImage(img, overlayX, overlayY, overlayWidth, overlayHeight);
+          } catch (error) {
+            console.warn('⚠️ Failed to load overlay:', error);
+          }
+        }
+      }
+
+      console.log('✅ Mousepad image generated successfully');
+      return canvas.toDataURL('image/png', 1.0);
+    } catch (error) {
+      console.error('❌ Error generating mousepad image:', error);
+      return '/placeholder.svg';
+    }
+  };
+
+  const handleDownloadImage = async (order: Order) => {
     try {
       console.log('📥 Downloading image for order:', order.id);
+      
+      // Generate the mousepad image from order data
+      const imageDataUrl = await generateMousepadImage(order);
+      
       const link = document.createElement('a');
-      link.href = order.previewImage;
-      link.download = `mousepad-${order.id}.png`;
+      link.href = imageDataUrl;
+      link.download = `mousepad-${order.id}-${order.items[0].specs.size}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -896,9 +931,7 @@ export default function AdminPanel() {
       console.log('✏️ Opening update dialog for order:', order.id);
       setSelectedOrder(order);
       setUpdateForm({
-        status: order.status,
-        notes: order.notes || '',
-        trackingNumber: order.trackingNumber || ''
+        status: order.status
       });
       setIsUpdateDialogOpen(true);
     } catch (error) {
@@ -908,6 +941,7 @@ export default function AdminPanel() {
 
   const getOrderStats = () => {
     try {
+      console.log('📊 Calculating order stats for', orders.length, 'orders');
       const total = orders.length;
       const pending = orders.filter(o => o.status === 'pending').length;
       const processing = orders.filter(o => o.status === 'processing').length;
@@ -915,6 +949,15 @@ export default function AdminPanel() {
       const delivered = orders.filter(o => o.status === 'delivered').length;
       const cancelled = orders.filter(o => o.status === 'cancelled').length;
       const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+
+      console.log('📈 Order stats:', { total, pending, processing, shipped, delivered, cancelled, totalRevenue });
+      
+      // Log status breakdown for debugging
+      const statusBreakdown = orders.reduce((acc, order) => {
+        acc[order.status] = (acc[order.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('🔍 Status breakdown:', statusBreakdown);
 
       return { total, pending, processing, shipped, delivered, cancelled, totalRevenue };
     } catch (error) {
@@ -993,15 +1036,7 @@ export default function AdminPanel() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-2">
-              Manage orders and customers
-              {wixConnected && (
-                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <span className="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
-                  Connected to Wix
-                </span>
-              )}
-            </p>
+            <p className="text-gray-600 mt-2">Manage orders and customers</p>
           </div>
         </div>
 
@@ -1094,65 +1129,109 @@ export default function AdminPanel() {
             </div>
 
             {/* Orders List */}
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredOrders.map((order) => (
-                <Card key={order.id}>
+                <Card key={order.id} className="hover:shadow-lg transition-shadow duration-200">
                   <CardContent className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {/* Order Info */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-semibold text-lg">Order #{order.id}</h3>
-                                                     <Badge variant="outline" className={statusColors[order.status]}>
-                             {statusIcons[order.status]}
-                             {order.status}
-                           </Badge>
-                        </div>
-                        <p className="text-gray-600">{order.customerEmail}</p>
-                        <p className="text-sm text-gray-500">
-                          {format(order.orderDate, 'MMM dd, yyyy')}
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">Order #{order.id}</h3>
+                        <p className="text-sm text-gray-500">{format(order.orderDate, 'MMM dd, yyyy HH:mm')}</p>
+                      </div>
+                      <Badge variant="outline" className={statusColors[order.status]}>
+                        {statusIcons[order.status]}
+                        {order.status}
+                      </Badge>
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="h-4 w-4 text-gray-500" />
+                        <span className="font-medium text-sm">Customer Email</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{order.customerEmail}</p>
+                    </div>
+
+                                         {/* Order Summary */}
+                     <div className="mb-4">
+                       <div className="flex items-center gap-2 mb-2">
+                         <Package className="h-4 w-4 text-gray-500" />
+                         <span className="font-medium text-sm">Order Details</span>
+                       </div>
+                       {order.items.map((item, index) => (
+                         <div key={index} className="space-y-2 text-sm">
+                           <div className="flex justify-between">
+                             <span className="font-medium">{item.name}</span>
+                             <span className="text-gray-600">Qty: {item.quantity}</span>
+                           </div>
+                           <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                             <div>Size: {item.specs.size}</div>
+                             <div>Thickness: {item.specs.thickness}</div>
+                             <div>Type: {item.specs.type}</div>
+                             {item.specs.rgb && (
+                               <div>RGB: {item.specs.rgb.mode}</div>
+                             )}
+                           </div>
+                           {item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0 && (
+                             <div className="text-xs text-gray-600">
+                               Text: {item.specs.text.map(t => t.text).join(', ')}
+                             </div>
+                           )}
+                           {item.specs.overlays && item.specs.overlays.length > 0 && (
+                             <div className="text-xs text-gray-600">
+                               Overlays: {item.specs.overlays.length} applied
+                             </div>
+                           )}
+                         </div>
+                       ))}
+                     </div>
+
+                     {/* Generated Mousepad Preview */}
+                     <div className="mb-4">
+                       <div className="flex items-center gap-2 mb-2">
+                         <Eye className="h-4 w-4 text-gray-500" />
+                         <span className="font-medium text-sm">Custom Design Preview</span>
+                       </div>
+                       <div className="flex justify-center">
+                         <img
+                           src={order.previewImage || '/placeholder.svg'}
+                           alt={`Mousepad design for order ${order.id}`}
+                           className="w-48 h-32 object-contain border border-gray-200 rounded-lg shadow-sm"
+                           onError={(e) => {
+                             console.warn('⚠️ Failed to load preview image for order:', order.id);
+                             e.currentTarget.src = '/placeholder.svg';
+                           }}
+                         />
+                       </div>
+                     </div>
+
+                    {/* Price and Actions */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                      <div>
+                        <p className="text-lg font-bold text-gray-900">${order.total.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">
+                          Subtotal: ${order.subtotal.toFixed(2)} | Tax: ${order.tax.toFixed(2)} | Shipping: ${order.shipping.toFixed(2)}
                         </p>
-                        <p className="font-semibold text-lg">${order.total.toFixed(2)}</p>
                       </div>
-
-                      {/* Order Details */}
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Order Details</h4>
-                        {order.items.map((item, index) => (
-                          <div key={index} className="text-sm text-gray-600">
-                            <div>Item: {item.name}</div>
-                            <div>Size: {item.specs.size}</div>
-                            <div>Thickness: {item.specs.thickness}</div>
-                            <div>Type: {item.specs.type}</div>
-                            {item.specs.rgb && (
-                              <div>RGB: {item.specs.rgb.mode} ({item.specs.rgb.color})</div>
-                            )}
-                            {item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0 && (
-                              <div>Text: {item.specs.text.map(t => t.text).join(', ')}</div>
-                            )}
-                            {item.specs.overlays && item.specs.overlays.length > 0 && (
-                              <div>Overlays: {item.specs.overlays.length}</div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
                         <Button
                           onClick={() => handleUpdateOrder(order)}
                           size="sm"
                           variant="outline"
+                          className="text-xs"
                         >
-                          <Edit className="h-4 w-4 mr-2" />
+                          <Edit className="h-3 w-3 mr-1" />
                           Edit
                         </Button>
                         <Button
                           onClick={() => handleDownloadImage(order)}
                           size="sm"
                           variant="outline"
+                          className="text-xs"
                         >
-                          <Download className="h-4 w-4 mr-2" />
+                          <Download className="h-3 w-3 mr-1" />
                           Download
                         </Button>
                       </div>
@@ -1165,42 +1244,31 @@ export default function AdminPanel() {
 
           {/* Users Tab */}
           <TabsContent value="users" className="space-y-6">
-            {/* User Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center">
-                    <Users className="h-8 w-8 text-blue-600" />
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Total Users</p>
-                      <p className="text-2xl font-bold text-gray-900">{userStats.total}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center">
-                    <User className="h-8 w-8 text-green-600" />
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Active Users</p>
-                      <p className="text-2xl font-bold text-gray-900">{userStats.active}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center">
-                    <DollarSign className="h-8 w-8 text-purple-600" />
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Total Spent</p>
-                      <p className="text-2xl font-bold text-gray-900">${userStats.totalRevenue.toFixed(2)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                         {/* User Stats */}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <Card>
+                 <CardContent className="p-6">
+                   <div className="flex items-center">
+                     <Users className="h-8 w-8 text-blue-600" />
+                     <div className="ml-4">
+                       <p className="text-sm font-medium text-gray-600">Total Users</p>
+                       <p className="text-2xl font-bold text-gray-900">{userStats.total}</p>
+                     </div>
+                   </div>
+                 </CardContent>
+               </Card>
+               <Card>
+                 <CardContent className="p-6">
+                   <div className="flex items-center">
+                     <DollarSign className="h-8 w-8 text-purple-600" />
+                     <div className="ml-4">
+                       <p className="text-sm font-medium text-gray-600">Total Spent</p>
+                       <p className="text-2xl font-bold text-gray-900">${userStats.totalRevenue.toFixed(2)}</p>
+                     </div>
+                   </div>
+                 </CardContent>
+               </Card>
+             </div>
 
             {/* User Filters */}
             <div className="flex flex-col sm:flex-row gap-4">
@@ -1219,29 +1287,18 @@ export default function AdminPanel() {
               {filteredUsers.map((user) => (
                 <Card key={user.id}>
                   <CardContent className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* User Info */}
                       <div className="space-y-2">
                         <h3 className="font-semibold text-lg">
-                          {user.firstName} {user.lastName}
+                          {user.email}
                         </h3>
-                        <p className="text-gray-600">{user.email}</p>
                         <p className="text-sm text-gray-500">
                           Joined: {format(user.joinDate, 'MMM dd, yyyy')}
                         </p>
                         <p className="text-sm text-gray-500">
                           Orders: {user.totalOrders} | Spent: ${user.totalSpent.toFixed(2)}
                         </p>
-                      </div>
-
-                      {/* User Details */}
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Contact Info</h4>
-                        <div className="text-sm text-gray-600">
-                          <div>Email: {user.email}</div>
-                          <div>Phone: {user.phone || 'N/A'}</div>
-                          <div>Address: {user.address.street}, {user.address.city}</div>
-                        </div>
                       </div>
 
                       {/* Actions */}
@@ -1253,14 +1310,6 @@ export default function AdminPanel() {
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
-                        </Button>
-                        <Button
-                          onClick={() => handleSendEmail(user)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Mail className="h-4 w-4 mr-2" />
-                          Send Email
                         </Button>
                       </div>
                     </div>
@@ -1296,24 +1345,7 @@ export default function AdminPanel() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={updateForm.notes}
-                  onChange={(e) => setUpdateForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Add order notes..."
-                />
-              </div>
-              <div>
-                <Label htmlFor="tracking">Tracking Number</Label>
-                <Input
-                  id="tracking"
-                  value={updateForm.trackingNumber}
-                  onChange={(e) => setUpdateForm(prev => ({ ...prev, trackingNumber: e.target.value }))}
-                  placeholder="Enter tracking number..."
-                />
-              </div>
+
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
@@ -1337,29 +1369,9 @@ export default function AdminPanel() {
             </DialogHeader>
             {selectedUser && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>First Name</Label>
-                    <p className="text-sm text-gray-600">{selectedUser.firstName}</p>
-                  </div>
-                  <div>
-                    <Label>Last Name</Label>
-                    <p className="text-sm text-gray-600">{selectedUser.lastName}</p>
-                  </div>
-                  <div>
-                    <Label>Email</Label>
-                    <p className="text-sm text-gray-600">{selectedUser.email}</p>
-                  </div>
-                  <div>
-                    <Label>Phone</Label>
-                    <p className="text-sm text-gray-600">{selectedUser.phone || 'N/A'}</p>
-                  </div>
-                </div>
                 <div>
-                  <Label>Address</Label>
-                  <p className="text-sm text-gray-600">
-                    {selectedUser.address.street}, {selectedUser.address.city}, {selectedUser.address.state} {selectedUser.address.zipCode}
-                  </p>
+                  <Label>Email</Label>
+                  <p className="text-sm text-gray-600">{selectedUser.email}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1385,10 +1397,6 @@ export default function AdminPanel() {
                     onClick={() => setIsUserDialogOpen(false)}
                   >
                     Close
-                  </Button>
-                  <Button onClick={() => handleSendEmail(selectedUser)}>
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send Email
                   </Button>
                 </div>
               </div>
