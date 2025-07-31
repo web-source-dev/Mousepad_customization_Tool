@@ -9,6 +9,7 @@ export interface CartItem {
   specs: Record<string, unknown>;
   quantity: number;
   price: number;
+  currency: 'USD' | 'SGD';
 }
 
 interface CartContextType {

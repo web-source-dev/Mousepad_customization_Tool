@@ -5,6 +5,7 @@ import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Check } from "lucide-react"
 
 interface Template {
@@ -178,6 +179,55 @@ const TEMPLATES: Template[] = [
     overlay: "/overlays/EvoGear Vanguard.png",
     premium: false,
   },
+  // Suggested Templates
+  {
+    id: 7,
+    name: "Minimalist Gaming",
+    category: "Suggested",
+    image: "/placeholder.svg",
+    overlay: "/placeholder.svg",
+    premium: false,
+  },
+  {
+    id: 8,
+    name: "Abstract Geometric",
+    category: "Suggested",
+    image: "/placeholder.svg",
+    overlay: "/placeholder.svg",
+    premium: false,
+  },
+  {
+    id: 9,
+    name: "Nature Landscape",
+    category: "Suggested",
+    image: "/placeholder.svg",
+    overlay: "/placeholder.svg",
+    premium: false,
+  },
+  {
+    id: 10,
+    name: "Space Theme",
+    category: "Suggested",
+    image: "/placeholder.svg",
+    overlay: "/placeholder.svg",
+    premium: false,
+  },
+  {
+    id: 11,
+    name: "Retro Gaming",
+    category: "Suggested",
+    image: "/placeholder.svg",
+    overlay: "/placeholder.svg",
+    premium: false,
+  },
+  {
+    id: 12,
+    name: "Modern Tech",
+    category: "Suggested",
+    image: "/placeholder.svg",
+    overlay: "/placeholder.svg",
+    premium: false,
+  },
 ]
 
 
@@ -198,8 +248,9 @@ export function TemplateGallery({
   cardSize = 'normal' 
 }: TemplateGalleryProps) {
   const [processedOverlays, setProcessedOverlays] = useState<Record<string, string>>({})
+  const [activeTab, setActiveTab] = useState("Gaming")
 
-  const filteredTemplates = TEMPLATES
+  const filteredTemplates = TEMPLATES.filter(template => template.category === activeTab)
 
   const handleTemplateClick = async (template: Template) => {
     if (selectedTemplateId === template.id) {
@@ -237,85 +288,175 @@ export function TemplateGallery({
 
   return (
     <div className="space-y-4">
-
-      {horizontal ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {filteredTemplates.map((template) => {
-            const isSelected = selectedTemplateId === template.id
-            return (
-              <Card
-                key={template.id}
-                className={
-                  cardSize === 'small'
-                    ? `min-w-[120px] max-w-[140px] cursor-pointer hover:shadow-lg transition-shadow flex-shrink-0 ${
-                        isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
-                      }`
-                    : `min-w-[200px] max-w-[220px] cursor-pointer hover:shadow-lg transition-shadow flex-shrink-0 ${
-                        isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
-                      }`
-                }
-              >
-                <CardContent className={cardSize === 'small' ? 'p-1' : 'p-3'}>
-                  <div className={cardSize === 'small' ? 'relative aspect-[4/3] mb-1' : 'relative aspect-[4/3] mb-2'}>
-                    <div
-                      onClick={() => handleTemplateClick(template)}
-                      className="relative aspect-[4/3] cursor-pointer"
-                    >
-                      <Image
-                        src={template.image || "/placeholder.svg"}
-                        alt={template.name}
-                        fill
-                        className="object-contain rounded hover:ring-2 hover:ring-blue-500 bg-gray-100"
-                      />
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
-                          <Check className="h-6 w-6 text-white bg-blue-500 rounded-full p-1" />
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="Gaming">Gaming</TabsTrigger>
+          <TabsTrigger value="Suggested">Suggested</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="Gaming" className="mt-4">
+          {horizontal ? (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {filteredTemplates.map((template) => {
+                const isSelected = selectedTemplateId === template.id
+                return (
+                  <Card
+                    key={template.id}
+                    className={
+                      cardSize === 'small'
+                        ? `min-w-[120px] max-w-[140px] cursor-pointer hover:shadow-lg transition-shadow flex-shrink-0 ${
+                            isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                          }`
+                        : `min-w-[200px] max-w-[220px] cursor-pointer hover:shadow-lg transition-shadow flex-shrink-0 ${
+                            isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                          }`
+                    }
+                  >
+                    <CardContent className={cardSize === 'small' ? 'p-1' : 'p-3'}>
+                      <div className={cardSize === 'small' ? 'relative aspect-[4/3] mb-1' : 'relative aspect-[4/3] mb-2'}>
+                        <div
+                          onClick={() => handleTemplateClick(template)}
+                          className="relative aspect-[4/3] cursor-pointer"
+                        >
+                          <Image
+                            src={template.image || "/placeholder.svg"}
+                            alt={template.name}
+                            fill
+                            className="object-contain rounded hover:ring-2 hover:ring-blue-500 bg-gray-100"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
+                              <Check className="h-6 w-6 text-white bg-blue-500 rounded-full p-1" />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  <h4 className={cardSize === 'small' ? 'font-medium text-xs mb-0.5' : 'font-medium text-sm mb-1'}>{template.name}</h4>
-                  <p className={cardSize === 'small' ? 'text-[10px] text-gray-500 mb-1' : 'text-xs text-gray-500 mb-2'}>{template.category}</p>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredTemplates.map((template) => {
-            const isSelected = selectedTemplateId === template.id
-            return (
-              <Card key={template.id} className={`cursor-pointer hover:shadow-lg transition-shadow ${
-                isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
-              }`}>
-                <CardContent className="p-3">
-                  <div className="relative aspect-[4/3] mb-2">
-                    <div
-                      onClick={() => handleTemplateClick(template)}
-                      className="relative aspect-[4/3] cursor-pointer"
-                    >
-                      <Image
-                        src={template.image || "/placeholder.svg"}
-                        alt={template.name}
-                        fill
-                        className="object-contain rounded hover:ring-2 hover:ring-blue-500 bg-gray-100"
-                      />
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
-                          <Check className="h-6 w-6 text-white bg-blue-500 rounded-full p-1" />
+                      </div>
+                      <h4 className={cardSize === 'small' ? 'font-medium text-xs mb-0.5' : 'font-medium text-sm mb-1'}>{template.name}</h4>
+                      <p className={cardSize === 'small' ? 'text-[10px] text-gray-500 mb-1' : 'text-xs text-gray-500 mb-2'}>{template.category}</p>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {filteredTemplates.map((template) => {
+                const isSelected = selectedTemplateId === template.id
+                return (
+                  <Card key={template.id} className={`cursor-pointer hover:shadow-lg transition-shadow ${
+                    isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                  }`}>
+                    <CardContent className="p-3">
+                      <div className="relative aspect-[4/3] mb-2">
+                        <div
+                          onClick={() => handleTemplateClick(template)}
+                          className="relative aspect-[4/3] cursor-pointer"
+                        >
+                          <Image
+                            src={template.image || "/placeholder.svg"}
+                            alt={template.name}
+                            fill
+                            className="object-contain rounded hover:ring-2 hover:ring-blue-500 bg-gray-100"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
+                              <Check className="h-6 w-6 text-white bg-blue-500 rounded-full p-1" />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  <h4 className="font-medium text-sm mb-1">{template.name}</h4>
-                  <p className="text-xs text-gray-500 mb-2">{template.category}</p>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                      </div>
+                      <h4 className="font-medium text-sm mb-1">{template.name}</h4>
+                      <p className="text-xs text-gray-500 mb-2">{template.category}</p>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="Suggested" className="mt-4">
+          {horizontal ? (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {filteredTemplates.map((template) => {
+                const isSelected = selectedTemplateId === template.id
+                return (
+                  <Card
+                    key={template.id}
+                    className={
+                      cardSize === 'small'
+                        ? `min-w-[120px] max-w-[140px] cursor-pointer hover:shadow-lg transition-shadow flex-shrink-0 ${
+                            isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                          }`
+                        : `min-w-[200px] max-w-[220px] cursor-pointer hover:shadow-lg transition-shadow flex-shrink-0 ${
+                            isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                          }`
+                    }
+                  >
+                    <CardContent className={cardSize === 'small' ? 'p-1' : 'p-3'}>
+                      <div className={cardSize === 'small' ? 'relative aspect-[4/3] mb-1' : 'relative aspect-[4/3] mb-2'}>
+                        <div
+                          onClick={() => handleTemplateClick(template)}
+                          className="relative aspect-[4/3] cursor-pointer"
+                        >
+                          <Image
+                            src={template.image || "/placeholder.svg"}
+                            alt={template.name}
+                            fill
+                            className="object-contain rounded hover:ring-2 hover:ring-blue-500 bg-gray-100"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
+                              <Check className="h-6 w-6 text-white bg-blue-500 rounded-full p-1" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <h4 className={cardSize === 'small' ? 'font-medium text-xs mb-0.5' : 'font-medium text-sm mb-1'}>{template.name}</h4>
+                      <p className={cardSize === 'small' ? 'text-[10px] text-gray-500 mb-1' : 'text-xs text-gray-500 mb-2'}>{template.category}</p>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {filteredTemplates.map((template) => {
+                const isSelected = selectedTemplateId === template.id
+                return (
+                  <Card key={template.id} className={`cursor-pointer hover:shadow-lg transition-shadow ${
+                    isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                  }`}>
+                    <CardContent className="p-3">
+                      <div className="relative aspect-[4/3] mb-2">
+                        <div
+                          onClick={() => handleTemplateClick(template)}
+                          className="relative aspect-[4/3] cursor-pointer"
+                        >
+                          <Image
+                            src={template.image || "/placeholder.svg"}
+                            alt={template.name}
+                            fill
+                            className="object-contain rounded hover:ring-2 hover:ring-blue-500 bg-gray-100"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
+                              <Check className="h-6 w-6 text-white bg-blue-500 rounded-full p-1" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <h4 className="font-medium text-sm mb-1">{template.name}</h4>
+                      <p className="text-xs text-gray-500 mb-2">{template.category}</p>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

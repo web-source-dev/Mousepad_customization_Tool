@@ -236,12 +236,108 @@
   animation: rainbow 3s linear infinite;
 }
 
-/* Breathing animation for RGB effects */
-@keyframes breathing {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+
+
+/* Custom slider styles */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #d1d5db;
 }
 
-.animate-breathing {
-  animation: breathing 2s ease-in-out infinite;
+.slider::-webkit-slider-track {
+  background: linear-gradient(to right, #e5e7eb 0%, #d1d5db 100%);
+  height: 8px;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #d1d5db;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  transition: all 0.2s ease;
+  border: 2px solid #ffffff;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transform: scale(1.1);
+}
+
+.slider::-webkit-slider-thumb:active {
+  transform: scale(0.95);
+}
+
+.slider::-moz-range-track {
+  background: linear-gradient(to right, #e5e7eb 0%, #d1d5db 100%);
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-moz-range-thumb {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  transition: all 0.2s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transform: scale(1.1);
+}
+
+.slider::-moz-range-thumb:active {
+  transform: scale(0.95);
+}
+
+/* Enhanced focus styles for better accessibility */
+.focus-visible:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Custom scrollbar for better visual appeal */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

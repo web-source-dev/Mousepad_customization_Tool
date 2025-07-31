@@ -59,6 +59,7 @@ export default function CartDetailsPage() {
       shipping,
       tax,
       total,
+      currency: items[0]?.currency || 'USD', // Get currency from first item, default to USD
       // ...other data
     };
 

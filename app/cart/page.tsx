@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import UserDetailsForm from "@/components/user-details-form";
 
 type WixUser = { email: string; id: string } | null;
 
@@ -18,6 +19,7 @@ export default function CartPage() {
   const { toast } = useToast();
   const [clearing, setClearing] = React.useState(false);
   const [checkingOut, setCheckingOut] = React.useState(false);
+  const [showUserDetailsForm, setShowUserDetailsForm] = React.useState(false);
   const [wixUser, setWixUser] = useState<WixUser>(null);
 
   useEffect(() => {
@@ -74,17 +76,19 @@ export default function CartPage() {
   const total = subtotal + shipping + tax;
 
   const handleCheckout = () => {
-    if (!wixUser) {
-      toast && toast({ title: "User info not loaded", description: "Please wait...", duration: 2000 });
-      return;
-    }
+    setShowUserDetailsForm(true);
+  };
+
+  const handleUserDetailsSubmit = (userDetails: any) => {
     const checkoutData = {
       items,
       subtotal,
       shipping,
       tax,
       total,
+      currency: items[0]?.currency || 'USD', // Get currency from first item, default to USD
       user: wixUser,
+      userDetails, // Include the user details form data
     };
 
     if (typeof window !== "undefined" && window.parent) {
@@ -100,6 +104,7 @@ export default function CartPage() {
     setCheckingOut(true);
     setTimeout(() => {
       setCheckingOut(false);
+      setShowUserDetailsForm(false);
       toast &&
         toast({
           title: "Checkout (Demo)",
@@ -109,12 +114,31 @@ export default function CartPage() {
     }, 1200);
   };
 
+  const handleUserDetailsCancel = () => {
+    setShowUserDetailsForm(false);
+  };
+
   // Responsive: stack on mobile, side-by-side on desktop
   return (
-    <div className="max-w-5xl mx-auto py-8 px-2 md:px-4 flex flex-col md:flex-row gap-8">
-      <div className="mb-4">
-        <Button variant="outline" onClick={() => router.back()}>&larr; Back</Button>
-      </div>
+    <div className="max-w-5xl mx-auto py-8 px-2 md:px-4">
+      {showUserDetailsForm ? (
+        <div className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={handleUserDetailsCancel}>&larr; Back to Cart</Button>
+            <h1 className="text-3xl font-bold">Checkout</h1>
+          </div>
+          <UserDetailsForm
+            onSubmit={handleUserDetailsSubmit}
+            onCancel={handleUserDetailsCancel}
+            isLoading={checkingOut}
+            initialEmail={wixUser?.email || ''}
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col md:flex-row gap-8">
+          <div className="mb-4">
+            <Button variant="outline" onClick={() => router.back()}>&larr; Back</Button>
+          </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Your Cart</h1>
@@ -243,7 +267,7 @@ export default function CartPage() {
             <Button
               className="w-full mt-6"
               size="lg"
-              disabled={items.length === 0 || checkingOut || !wixUser}
+              disabled={items.length === 0 || checkingOut}
               aria-label="Checkout"
               onClick={handleCheckout}
             >
@@ -270,6 +294,8 @@ export default function CartPage() {
           </CardContent>
         </Card>
       </div>
+        </div>
+      )}
     </div>
   );
 } 
