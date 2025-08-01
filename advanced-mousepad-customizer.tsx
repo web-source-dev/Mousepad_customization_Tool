@@ -1580,7 +1580,7 @@ export default function AdvancedMousepadCustomizer() {
                                   await addItem({
                                     id: Date.now().toString() + Math.random().toString(36).slice(2),
                                     name: "Custom Mousepad",
-                                    image: finalImage,
+                                    image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     specs: {
                                       type: mousepadType,
                                       size: mousepadSize,
@@ -1593,14 +1593,11 @@ export default function AdvancedMousepadCustomizer() {
                                       } : undefined,
                                       text: textElements,
                                       overlays: appliedOverlays,
-                                      // Store the customized image as base64
-                                      customizedImage: finalImage,
-                                      // Store the original image URL
-                                      originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     },
                                     quantity,
                                     price: parseFloat(calculatedPrice.toFixed(2)),
                                     currency,
+                                    originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   });
                                   if (toast) {
                                     toast({
@@ -1624,7 +1621,7 @@ export default function AdvancedMousepadCustomizer() {
                                   await addItem({
                                     id: Date.now().toString() + Math.random().toString(36).slice(2),
                                     name: "Custom Mousepad",
-                                    image: editedImage || uploadedImage || "/placeholder.svg",
+                                    image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     specs: {
                                       type: mousepadType,
                                       size: mousepadSize,
@@ -1637,10 +1634,6 @@ export default function AdvancedMousepadCustomizer() {
                                       } : undefined,
                                       text: textElements,
                                       overlays: appliedOverlays,
-                                      // Store the customized image as base64 (fallback to edited image)
-                                      customizedImage: editedImage || uploadedImage || "/placeholder.svg",
-                                      // Store the original image URL
-                                      originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     },
                                     quantity,
                                     price: parseFloat(getExactMousepadPrice({
@@ -1651,6 +1644,7 @@ export default function AdvancedMousepadCustomizer() {
                                       rgb: mousepadType === "rgb",
                                     }).toFixed(2)),
                                     currency,
+                                    originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   });
                                   if (toast) {
                                     toast({
@@ -2266,7 +2260,7 @@ export default function AdvancedMousepadCustomizer() {
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
-                                  image: finalImage,
+                                  image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   specs: {
                                     type: mousepadType,
                                     size: mousepadSize,
@@ -2279,14 +2273,11 @@ export default function AdvancedMousepadCustomizer() {
                                     } : undefined,
                                     text: textElements,
                                     overlays: appliedOverlays,
-                                    // Store the customized image as base64
-                                    customizedImage: finalImage,
-                                    // Store the original image URL
-                                    originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   },
                                   quantity,
                                   price: parseFloat(calculatedPrice.toFixed(2)),
                                   currency,
+                                  originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                 });
                                 if (toast) {
                                   toast({
@@ -2310,7 +2301,7 @@ export default function AdvancedMousepadCustomizer() {
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
-                                  image: editedImage || uploadedImage || "/placeholder.svg",
+                                  image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   specs: {
                                     type: mousepadType,
                                     size: mousepadSize,
@@ -2323,10 +2314,6 @@ export default function AdvancedMousepadCustomizer() {
                                     } : undefined,
                                     text: textElements,
                                     overlays: appliedOverlays,
-                                    // Store the customized image as base64 (fallback to edited image)
-                                    customizedImage: editedImage || uploadedImage || "/placeholder.svg",
-                                    // Store the original image URL
-                                    originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   },
                                   quantity,
                                   price: parseFloat(getExactMousepadPrice({
@@ -2337,6 +2324,7 @@ export default function AdvancedMousepadCustomizer() {
                                     rgb: mousepadType === "rgb",
                                   }).toFixed(2)),
                                   currency,
+                                  originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                 });
                                 if (toast) {
                                   toast({

@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Download, Search, Filter, Calendar, User, Package, DollarSign, Edit, Users, Settings, Eye, Mail, Phone, MapPin, ChevronDown } from 'lucide-react';
+import { Download, Search, Filter, Calendar, Package, DollarSign, Edit, Settings, Eye, Mail, Phone, MapPin, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
@@ -128,7 +128,6 @@ export default function AdminPanel() {
 
     // Wix communication state
     const [wixConnected, setWixConnected] = useState(false);
-    const [wixUserData, setWixUserData] = useState<any>(null);
     const [dataLoaded, setDataLoaded] = useState(false);
     const [ordersLoaded, setOrdersLoaded] = useState(false);
     const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set());
@@ -295,8 +294,7 @@ export default function AdminPanel() {
                             id: Date.now().toString()
                         });
 
-                        // Request user data from Wix
-                        requestUserDataFromWix();
+
                     } catch (error) {
                         console.error('❌ Error sending initial messages:', error);
                     }
@@ -333,10 +331,7 @@ export default function AdminPanel() {
             console.log('📬 Processing message type:', type, 'with id:', id);
 
             switch (type) {
-                case 'USER_DATA_RESPONSE':
-                    console.log('👤 User data received:', data);
-                    setWixUserData(data);
-                    break;
+
                 case 'ORDER_CREATED_RESPONSE':
                     console.log('📦 Order created response:', data);
                     handleOrderCreatedResponse(data);
@@ -358,10 +353,7 @@ export default function AdminPanel() {
                     handleFetchOrdersResponse(data);
                     break;
 
-                case 'INIT':
-                    console.log('🚀 Wix init:', data);
-                    handleWixInit(data);
-                    break;
+
                 default:
                     console.log('❓ Unknown message type from Wix:', type, data);
             }
@@ -408,32 +400,9 @@ export default function AdminPanel() {
         }
     };
 
-    // Request user data from Wix
-    const requestUserDataFromWix = () => {
-        try {
-            console.log('👤 Requesting user data from Wix...');
-            sendMessageToWix({
-                type: 'USER_DATA_REQUEST',
-                data: {},
-                id: Date.now().toString()
-            });
-        } catch (error) {
-            console.error('❌ Error requesting user data:', error);
-        }
-    };
 
-    // Handle Wix initialization
-    const handleWixInit = (data: any) => {
-        try {
-            console.log('🚀 Wix initialization data:', data);
-            if (data.userEmail) {
-                console.log('📧 Setting user email from Wix:', data.userEmail);
-                setWixUserData({ email: data.userEmail });
-            }
-        } catch (error) {
-            console.error('❌ Error handling Wix init:', error);
-        }
-    };
+
+
 
     // Handle order creation response from Wix
     const handleOrderCreatedResponse = (data: any) => {
@@ -840,8 +809,15 @@ export default function AdminPanel() {
 
     const loadData = async () => {
         try {
-            console.log('🔄 Loading data from Wix...');
+            console.log('🔄 Loading data from API...');
             setLoading(true);
+
+            // Only load from API if we don't have Wix data
+            if (ordersLoaded && orders.length > 0) {
+                console.log('✅ Skipping API load - Wix data already loaded');
+                setLoading(false);
+                return;
+            }
 
             // Try to fetch from API
             try {
@@ -849,7 +825,7 @@ export default function AdminPanel() {
                 const result = await response.json();
 
                 if (result.success) {
-                    console.log('✅ Orders loaded successfully:', result.data.length);
+                    console.log('✅ API orders loaded successfully:', result.data.length);
                     // Convert ISO date strings back to Date objects
                     const ordersWithDates = result.data.map((order: any) => ({
                         ...order,
@@ -861,24 +837,33 @@ export default function AdminPanel() {
                     setDataLoaded(true);
                 } else {
                     console.warn('⚠️ API returned error');
+                    // Don't override existing Wix data
+                    if (!ordersLoaded) {
+                        setOrders([]);
+                        setFilteredOrders([]);
+                        setOrdersLoaded(true);
+                        setDataLoaded(true);
+                    }
+                }
+            } catch (apiError) {
+                console.warn('⚠️ API call failed:', apiError);
+                // Don't override existing Wix data
+                if (!ordersLoaded) {
                     setOrders([]);
                     setFilteredOrders([]);
                     setOrdersLoaded(true);
                     setDataLoaded(true);
                 }
-            } catch (apiError) {
-                console.warn('⚠️ API call failed:', apiError);
+            }
+        } catch (error) {
+            console.error('❌ Error loading data:', error);
+            // Don't override existing Wix data
+            if (!ordersLoaded) {
                 setOrders([]);
                 setFilteredOrders([]);
                 setOrdersLoaded(true);
                 setDataLoaded(true);
             }
-        } catch (error) {
-            console.error('❌ Error loading data:', error);
-            setOrders([]);
-            setFilteredOrders([]);
-            setOrdersLoaded(true);
-            setDataLoaded(true);
         } finally {
             setLoading(false);
             console.log('✅ Data loading completed');
@@ -1490,7 +1475,7 @@ export default function AdminPanel() {
                                             {/* Customer Info */}
                                             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <User className="h-4 w-4 text-gray-500" />
+                                                    <Package className="h-4 w-4 text-gray-500" />
                                                     <span className="font-medium text-sm">Customer Email</span>
                                                 </div>
                                                 <p className="text-sm text-gray-700">{order.customerEmail}</p>

@@ -10,9 +10,8 @@ export interface CartItem {
   quantity: number;
   price: number;
   currency: 'USD' | 'SGD';
-  // Additional image data for checkout
+  // Store only the original image URL, not Base64
   originalImageUrl?: string;
-  customizedImageBase64?: string;
 }
 
 interface CartContextType {
@@ -24,42 +23,10 @@ interface CartContextType {
   clearCart: () => void;
 }
 
-// Image compression utility
-const compressImage = (dataUrl: string, maxWidth: number = 800, quality: number = 0.8): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) {
-        reject(new Error('Could not get canvas context'));
-        return;
-      }
 
-      // Calculate new dimensions maintaining aspect ratio
-      let { width, height } = img;
-      if (width > maxWidth) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
-      }
 
-      canvas.width = width;
-      canvas.height = height;
-
-      // Draw and compress
-      ctx.drawImage(img, 0, 0, width, height);
-      const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-      resolve(compressedDataUrl);
-    };
-    
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = dataUrl;
-  });
-};
-
-// Safe localStorage operations with compression
-const saveToStorage = async (items: CartItem[]) => {
+// Safe localStorage operations - store without large images
+const saveToStorage = (items: CartItem[]) => {
   try {
     console.log('Saving items to storage:', items.map(item => ({
       id: item.id,
@@ -68,44 +35,24 @@ const saveToStorage = async (items: CartItem[]) => {
       quantity: item.quantity
     })));
     
-    // Compress images before storing
-    const compressedItems = await Promise.all(
-      items.map(async (item) => ({
-        ...item,
-        image: await compressImage(item.image, 600, 0.7) // Smaller size for cart
-      }))
-    );
+    // Store items without large image data to avoid localStorage quota issues
+    const storageItems = items.map(item => ({
+      ...item,
+      image: item.image.startsWith('data:image') ? '/placeholder.svg' : item.image // Replace Base64 with placeholder
+    }));
     
-    console.log('Compressed items for storage:', compressedItems.map(item => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity
-    })));
-    
-    const data = JSON.stringify(compressedItems);
-    
-    // Check if data is too large (localStorage limit is ~5-10MB)
-    if (data.length > 4 * 1024 * 1024) { // 4MB limit
-      console.warn('Cart data too large, clearing old items');
-      // Remove oldest items to make space
-      const reducedItems = compressedItems.slice(-2); // Keep only last 2 items
-      localStorage.setItem('mousepadCart', JSON.stringify(reducedItems));
-    } else {
-      localStorage.setItem('mousepadCart', data);
-    }
+    const data = JSON.stringify(storageItems);
+    localStorage.setItem('mousepadCart', data);
   } catch (error) {
     console.error('Failed to save cart to localStorage:', error);
     
-    // Try to clear localStorage and save a minimal version
+    // Try to save a minimal version without images
     try {
-      localStorage.clear();
       const itemsWithoutImages = items.map(({ image, ...rest }) => rest);
       localStorage.setItem('mousepadCart', JSON.stringify(itemsWithoutImages));
       console.log('Saved cart without images due to storage error');
     } catch (clearError) {
-      console.error('Failed to clear localStorage:', clearError);
-      // Last resort: remove the cart data completely
+      console.error('Failed to save cart to localStorage:', clearError);
       localStorage.removeItem('mousepadCart');
     }
   }
@@ -144,7 +91,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Persist to localStorage with compression
+  // Persist to localStorage
   useEffect(() => {
     if (items.length > 0) {
       saveToStorage(items);
