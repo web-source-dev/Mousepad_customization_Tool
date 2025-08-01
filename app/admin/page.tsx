@@ -307,13 +307,8 @@ export default function AdminPanel() {
   // Request data from Wix when connected
   useEffect(() => {
     try {
-      // Prevent multiple data loading attempts
-      if (ordersLoaded && usersLoaded) {
-        console.log('✅ All data already loaded, skipping...');
-        return;
-      }
-      
-      if (wixConnected) {
+      // Only request data if Wix is connected and we haven't loaded all data yet
+      if (wixConnected && !dataLoaded) {
         console.log('🔗 Wix connected, requesting data...');
         // Request orders and users from Wix
         requestDataFromWix();
@@ -324,7 +319,7 @@ export default function AdminPanel() {
           setShowReloadButton(true);
           setLoading(false);
         }, 5000); // 5 second timeout
-      } else {
+      } else if (!wixConnected) {
         console.log('🔌 Wix not connected, showing reload button...');
         // Show reload button if Wix is not connected
         setShowReloadButton(true);
@@ -344,7 +339,7 @@ export default function AdminPanel() {
         timeoutRef.current = null;
       }
     };
-  }, [wixConnected, ordersLoaded, usersLoaded]);
+  }, [wixConnected, dataLoaded]);
 
   // Initialize Wix iframe communication
   const initializeWixCommunication = () => {
@@ -639,6 +634,7 @@ export default function AdminPanel() {
         // Check if both orders and users are loaded
         if (usersLoaded) {
           setDataLoaded(true);
+          setLoading(false);
           console.log('🎉 All data loaded successfully!');
           
           // Clear timeout since all data was successfully loaded
@@ -694,6 +690,7 @@ export default function AdminPanel() {
         // Check if both orders and users are loaded
         if (ordersLoaded) {
           setDataLoaded(true);
+          setLoading(false);
           console.log('🎉 All data loaded successfully!');
           
           // Clear timeout since all data was successfully loaded
@@ -990,6 +987,50 @@ export default function AdminPanel() {
       console.error('❌ Error filtering orders:', error);
     }
   }, [orders, searchTerm, statusFilter, ordersLoaded, loading]);
+
+  // Ensure dataLoaded is set when both orders and users are loaded
+  useEffect(() => {
+    try {
+      if (ordersLoaded && usersLoaded && !dataLoaded) {
+        console.log('🎉 Both orders and users loaded, setting dataLoaded to true');
+        setDataLoaded(true);
+        setLoading(false);
+        
+        // Clear timeout since all data was successfully loaded
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+          console.log('⏰ Cleared timeout - all data loaded successfully');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in dataLoaded effect:', error);
+    }
+  }, [ordersLoaded, usersLoaded, dataLoaded]);
+
+  // Ensure filteredOrders is set when orders are loaded and no filters are applied
+  useEffect(() => {
+    try {
+      if (ordersLoaded && !loading && orders.length > 0 && !searchTerm && statusFilter === 'all') {
+        console.log('🎯 Setting filteredOrders to all orders (no filters applied)');
+        setFilteredOrders(orders);
+      }
+    } catch (error) {
+      console.error('❌ Error setting filteredOrders:', error);
+    }
+  }, [orders, ordersLoaded, loading, searchTerm, statusFilter]);
+
+  // Debug: Monitor orders state changes
+  useEffect(() => {
+    console.log('📊 Orders state changed:', {
+      ordersCount: orders.length,
+      ordersLoaded,
+      usersLoaded,
+      dataLoaded,
+      loading,
+      filteredOrdersCount: filteredOrders.length
+    });
+  }, [orders, ordersLoaded, usersLoaded, dataLoaded, loading, filteredOrders]);
 
   useEffect(() => {
     try {
@@ -1307,7 +1348,8 @@ export default function AdminPanel() {
               OrdersLoaded: {ordersLoaded ? '✅' : '❌'} | 
               UsersLoaded: {usersLoaded ? '✅' : '❌'} | 
               DataLoaded: {dataLoaded ? '✅' : '❌'} | 
-              Loading: {loading ? '✅' : '❌'}
+              Loading: {loading ? '✅' : '❌'} |
+              WixConnected: {wixConnected ? '✅' : '❌'}
             </div>
           </div>
         </div>
