@@ -85,137 +85,11 @@ interface Order {
     previewImages: string[];
 }
 
-interface User {
-    id: string;
-    email: string;
-    totalOrders: number;
-    totalSpent: number;
-    lastOrderDate: Date;
-    joinDate: Date;
-    status: 'active' | 'inactive';
-}
 
-// Mock data generator
-const generateMockOrders = (): Order[] => {
-    const themes = ['Gaming', 'Abstract', 'Nature', 'Space', 'Minimalist'];
-    const sizes = ['400x800', '500x800', '500x1000', '600x800', '600x1000', '800x800', '900x400', '1000x500', '1000x400'];
-    const statuses: Order['status'][] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-    const names = [
-        'John Smith', 'Emma Johnson', 'Michael Brown', 'Sarah Davis', 'David Wilson',
-        'Lisa Anderson', 'James Taylor', 'Jennifer Martinez', 'Robert Garcia', 'Amanda Rodriguez'
-    ];
 
-    return Array.from({ length: 25 }, (_, i) => {
-        const theme = themes[Math.floor(Math.random() * themes.length)];
-        const size = sizes[Math.floor(Math.random() * sizes.length)];
-        // Ensure more pending orders for testing (40% pending, 20% each for others)
-        const status = i < 10 ? 'pending' : statuses[Math.floor(Math.random() * statuses.length)];
-        const customerEmail = `customer${i + 1}@example.com`;
 
-        const subtotal = Math.floor(Math.random() * 50) + 25;
-        const shipping = subtotal > 50 ? 0 : 5.99;
-        const tax = subtotal * 0.08;
-        const total = subtotal + shipping + tax;
 
-        return {
-            id: `ORD-${String(i + 1).padStart(4, '0')}`,
-            customerEmail,
-            orderDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-            status,
-            items: [{
-                id: `item-${i}`,
-                name: `Custom ${theme} Mousepad`,
-                image: `data:image/svg+xml;base64,${btoa(`
-          <svg width="400" height="800" xmlns="http://www.w3.org/2000/svg">
-            <rect width="100%" height="100%" fill="${theme === 'Gaming' ? '#1a1a2e' : theme === 'Nature' ? '#2d5016' : theme === 'Space' ? '#0a0a23' : theme === 'Abstract' ? '#4a148c' : '#f5f5f5'}"/>
-            <text x="200" y="400" text-anchor="middle" fill="white" font-family="Arial" font-size="24">${theme} Design</text>
-            <text x="200" y="430" text-anchor="middle" fill="white" font-family="Arial" font-size="18">${size}</text>
-          </svg>
-        `)}`,
-                specs: {
-                    size,
-                    thickness: '4mm',
-                    type: 'rgb',
-                    rgb: {
-                        mode: Math.random() > 0.5 ? 'static' : 'rainbow',
-                        color: theme === 'Gaming' ? '#ff6b6b' : theme === 'Nature' ? '#4ade80' : theme === 'Space' ? '#6366f1' : theme === 'Abstract' ? '#f59e0b' : '#6b7280',
-                        brightness: 100,
-                        animationSpeed: 50
-                    },
-                    text: Math.random() > 0.5 ? [
-                        {
-                            id: 1753371085549,
-                            text: 'Custom Text',
-                            type: 'text',
-                            font: 'Arial',
-                            size: 72,
-                            color: '#000000',
-                            position: { x: 50, y: 50 },
-                            rotation: 0,
-                            opacity: 100,
-                            shadow: {
-                                enabled: false,
-                                color: '#000000',
-                                x: 2,
-                                y: 2,
-                                blur: 4
-                            },
-                            outline: {
-                                enabled: false,
-                                color: '#ffffff',
-                                width: 1
-                            },
-                            gradient: {
-                                enabled: false,
-                                from: '#ff0000',
-                                to: '#0000ff',
-                                direction: 'horizontal'
-                            }
-                        }
-                    ] : [],
-                    overlays: Math.random() > 0.5 ? ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAo4'] : []
-                },
-                quantity: Math.floor(Math.random() * 3) + 1,
-                price: subtotal,
-                currency: 'USD' as const
-            }],
-            subtotal,
-            shipping,
-            tax,
-            total,
-            currency: 'USD' as const,
-            previewImages: [`data:image/svg+xml;base64,${btoa(`
-        <svg width="400" height="800" xmlns="http://www.w3.org/2000/svg">
-          <rect width="100%" height="100%" fill="${theme === 'Gaming' ? '#1a1a2e' : theme === 'Nature' ? '#2d5016' : theme === 'Space' ? '#0a0a23' : theme === 'Abstract' ? '#4a148c' : '#f5f5f5'}"/>
-          <text x="200" y="400" text-anchor="middle" fill="white" font-family="Arial" font-size="24">${theme} Design</text>
-          <text x="200" y="430" text-anchor="middle" fill="white" font-family="Arial" font-size="18">${size}</text>
-        </svg>
-      `)}`],
-            userDetails: {
-                email: customerEmail
-            }
-        };
-    });
-};
 
-const generateMockUsers = (): User[] => {
-    return Array.from({ length: 15 }, (_, i) => {
-        const totalOrders = Math.floor(Math.random() * 10) + 1;
-        const totalSpent = totalOrders * (Math.floor(Math.random() * 100) + 25);
-        const lastOrderDate = new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000);
-        const joinDate = new Date(lastOrderDate.getTime() - Math.random() * 365 * 24 * 60 * 60 * 1000);
-
-        return {
-            id: `USER-${String(i + 1).padStart(4, '0')}`,
-            email: `user${i + 1}@example.com`,
-            totalOrders,
-            totalSpent,
-            lastOrderDate,
-            joinDate,
-            status: Math.random() > 0.2 ? 'active' : 'inactive'
-        };
-    });
-};
 
 const statusColors = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -351,10 +225,10 @@ export default function AdminPanel() {
     // Request data from Wix when connected
     useEffect(() => {
         try {
-            // If Wix is connected, always request real data (even if mock data was loaded)
+            // If Wix is connected, always request real data
             if (wixConnected) {
                 console.log('🔗 Wix connected, requesting real data...');
-                // Reset loading states to allow real data to override mock data
+                // Reset loading states to allow real data to load
                 setOrdersLoaded(false);
                 setDataLoaded(false);
                 
@@ -363,27 +237,27 @@ export default function AdminPanel() {
 
                 // Set a timeout to handle Wix not responding
                 timeoutRef.current = setTimeout(() => {
-                    // Only fall back to mock data if we haven't received real data yet
+                    // Handle timeout if we haven't received real data yet
                     if (!ordersLoaded) {
-                        console.warn('⏰ Wix data request timeout, falling back to mock data...');
+                        console.warn('⏰ Wix data request timeout');
                         console.log('📊 Current state at timeout:', { ordersLoaded, dataLoaded });
                         setLoading(false);
-                        loadData(true); // Load mock data as fallback
+                        loadData(); // Load data from API
                     } else {
-                        console.log('⏰ Timeout occurred but real data already loaded, skipping fallback');
+                        console.log('⏰ Timeout occurred but real data already loaded');
                         console.log('📊 Current state at timeout:', { ordersLoaded, dataLoaded });
                         setLoading(false);
                     }
                 }, 5000); // 5 second timeout
             } else {
-                console.log('🔌 Wix not connected, loading mock data...');
+                console.log('🔌 Wix not connected, loading data from API...');
                 setLoading(false);
-                loadData(true); // Load mock data
+                loadData(); // Load data from API
             }
         } catch (error) {
             console.error('❌ Error requesting data from Wix:', error);
             setLoading(false);
-            loadData(true); // Load mock data as fallback
+            loadData(); // Load data from API
         }
 
         // Cleanup timeout if component unmounts or data is loaded
@@ -428,12 +302,12 @@ export default function AdminPanel() {
                     }
                 }, 200); // Increased delay to ensure everything is ready
             } else {
-                console.log('⚠️ Not running in iframe, using mock data');
+                console.log('⚠️ Not running in iframe, loading data from API');
             }
         } catch (error) {
             console.error('❌ Error initializing Wix communication:', error);
-            // Don't throw error, just log it and continue with mock data
-            console.log('🔄 Falling back to mock data mode');
+            // Don't throw error, just log it and continue with API data
+            console.log('🔄 Falling back to API data mode');
         }
     };
 
@@ -954,86 +828,57 @@ export default function AdminPanel() {
 
             // Set timeout again
             timeoutRef.current = setTimeout(() => {
-                console.warn('⏰ Wix data request timeout on reload, falling back to mock data...');
+                console.warn('⏰ Wix data request timeout on reload');
                 setLoading(false);
-                loadData(true); // Load mock data as fallback
+                loadData(); // Load data from API
             }, 5000);
         } else {
-            // Not in iframe, load mock data
-            loadData(true);
+            // Not in iframe, load data from API
+            loadData();
         }
     };
 
-    const loadData = async (isFallback = false) => {
+    const loadData = async () => {
         try {
-            console.log('🔄 Loading data...', isFallback ? '(fallback mode)' : '');
+            console.log('🔄 Loading data from Wix...');
             setLoading(true);
 
-            // Only try to fetch from API if not in fallback mode
-            if (!isFallback) {
-                try {
-                    const response = await fetch('/api/orders');
-                    const result = await response.json();
+            // Try to fetch from API
+            try {
+                const response = await fetch('/api/orders');
+                const result = await response.json();
 
-                    if (result.success) {
-                        console.log('✅ Orders loaded successfully:', result.data.length);
-                        // Convert ISO date strings back to Date objects
-                        const ordersWithDates = result.data.map((order: any) => ({
-                            ...order,
-                            orderDate: new Date(order.orderDate)
-                        }));
-                        setOrders(ordersWithDates);
-                        setFilteredOrders(ordersWithDates);
-                        setOrdersLoaded(true);
-
-                        // Generate mock users
-                        setDataLoaded(true);
-                        return; // Exit early if API call succeeded
-                    } else {
-                        console.warn('⚠️ API returned error, falling back to mock data');
-                        loadData(true); // Load mock data as fallback
-                    }
-                } catch (apiError) {
-                    console.warn('⚠️ API call failed, falling back to mock data:', apiError);
-                    loadData(true); // Load mock data as fallback
+                if (result.success) {
+                    console.log('✅ Orders loaded successfully:', result.data.length);
+                    // Convert ISO date strings back to Date objects
+                    const ordersWithDates = result.data.map((order: any) => ({
+                        ...order,
+                        orderDate: new Date(order.orderDate)
+                    }));
+                    setOrders(ordersWithDates);
+                    setFilteredOrders(ordersWithDates);
+                    setOrdersLoaded(true);
+                    setDataLoaded(true);
+                } else {
+                    console.warn('⚠️ API returned error');
+                    setOrders([]);
+                    setFilteredOrders([]);
+                    setOrdersLoaded(true);
+                    setDataLoaded(true);
                 }
-            } else {
-                // Fallback to mock data - only if we haven't already received real data
-                if (ordersLoaded) {
-                    console.log('🔄 Skipping mock data load - real data already loaded');
-                    setLoading(false);
-                    return;
-                }
-
-                console.log('🔄 Loading mock data...');
-                console.log('⚠️ WARNING: Loading mock data - this should not happen if real data was received');
-                const mockOrders = generateMockOrders();
-                setOrders(mockOrders);
-                setFilteredOrders(mockOrders);
-
-                // Set loading states for mock data
+            } catch (apiError) {
+                console.warn('⚠️ API call failed:', apiError);
+                setOrders([]);
+                setFilteredOrders([]);
                 setOrdersLoaded(true);
                 setDataLoaded(true);
-
-                // Generate images for mock orders
-                generateImagesForOrders(mockOrders);
             }
         } catch (error) {
             console.error('❌ Error loading data:', error);
-            // Load mock data as fallback on any error - only if we haven't already received real data
-            if (!ordersLoaded) {
-                console.log('⚠️ WARNING: Loading mock data due to error - this should not happen if real data was received');
-                const mockOrders = generateMockOrders();
-                setOrders(mockOrders);
-                setFilteredOrders(mockOrders);
-                setOrdersLoaded(true);
-                setDataLoaded(true);
-
-                // Generate images for mock orders (error fallback)
-                generateImagesForOrders(mockOrders);
-            } else {
-                console.log('✅ Skipping mock data load due to error - real data already loaded');
-            }
+            setOrders([]);
+            setFilteredOrders([]);
+            setOrdersLoaded(true);
+            setDataLoaded(true);
         } finally {
             setLoading(false);
             console.log('✅ Data loading completed');
@@ -1433,98 +1278,7 @@ export default function AdminPanel() {
     };
 
     // Test function to verify image generation
-    const testImageGeneration = async () => {
-        try {
-            console.log('🧪 Testing image generation...');
-            const testOrder: Order = {
-                id: 'test-order',
-                customerEmail: 'test@example.com',
-                orderDate: new Date(),
-                status: 'pending',
-                items: [{
-                    id: 'test-item',
-                    name: 'Test Mousepad',
-                    image: '/placeholder.svg',
-                    specs: {
-                        size: '350x600', // Match the size from your screenshot
-                        thickness: '5mm',
-                        type: 'rgb',
-                        rgb: {
-                            mode: 'rainbow',
-                            color: '#ff0000',
-                            brightness: 80,
-                            animationSpeed: 50
-                        },
-                        text: [{
-                            id: 1,
-                            text: 'Test Text',
-                            type: 'text',
-                            color: '#000000',
-                            font: 'Arial',
-                            size: 72,
-                            position: { x: 50, y: 50 },
-                            rotation: 0,
-                            opacity: 100,
-                            shadow: {
-                                enabled: false,
-                                color: '#000000',
-                                blur: 4,
-                                x: 2,
-                                y: 2
-                            },
-                            outline: {
-                                enabled: false,
-                                color: '#ffffff',
-                                width: 1
-                            },
-                            gradient: {
-                                enabled: false,
-                                direction: 'horizontal',
-                                from: '#ff0000',
-                                to: '#0000ff'
-                            }
-                        }],
-                        overlays: []
-                    },
-                    quantity: 1,
-                    price: 97
-                }],
-                subtotal: 97,
-                shipping: 0,
-                tax: 7.76,
-                total: 104.76,
-                currency: 'USD',
-                userDetails: { email: 'test@example.com' },
-                previewImages: []
-            };
 
-            const generatedImages = await generateMousepadImage(testOrder);
-            console.log('🧪 Test image generation result:', generatedImages);
-            
-            // Create a test download
-            if (generatedImages.length > 0) {
-                const link = document.createElement('a');
-                link.href = generatedImages[0];
-                link.download = 'test-mousepad-generation.png';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                console.log('🧪 Test image downloaded');
-                
-                toast({
-                    title: "Test Image Generated",
-                    description: "Test mousepad image has been generated and downloaded",
-                });
-            }
-        } catch (error) {
-            console.error('🧪 Test image generation failed:', error);
-            toast({
-                title: "Test Failed",
-                description: "Failed to generate test image",
-                variant: "destructive",
-            });
-        }
-    };
 
     const getOrderStats = () => {
         try {
@@ -1583,37 +1337,19 @@ export default function AdminPanel() {
         return (
             <div className="min-h-screen bg-gray-50 p-4">
                 <div className="max-w-7xl mx-auto">
-                    <div className="animate-pulse">
-                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                            {[...Array(4)].map((_, i) => (
-                                <div key={i} className="h-24 bg-gray-200 rounded"></div>
-                            ))}
-                        </div>
-                        <div className="space-y-4">
-                            {[...Array(5)].map((_, i) => (
-                                <div key={i} className="h-32 bg-gray-200 rounded"></div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // Show loading screen only if still loading and no data loaded yet
-    if (loading && !dataLoaded) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-4">
-                <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col items-center justify-center min-h-[60vh]">
                         <div className="bg-white rounded-lg shadow-md p-8 text-center max-w-md">
                             <div className="mb-6">
-                                <div className="h-16 w-16 text-gray-400 mx-auto mb-4 flex items-center justify-center text-4xl">🔄</div>
+                                <div className="h-16 w-16 text-blue-600 mx-auto mb-4 flex items-center justify-center text-4xl animate-spin">⚙️</div>
                                 <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading Admin Dashboard</h2>
-                                <p className="text-gray-600 mb-6">
-                                    Please wait while we fetch your data...
+                                <p className="text-gray-600 mb-4">
+                                    Connecting to Wix and loading order data...
                                 </p>
+                                <div className="flex items-center justify-center space-x-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1639,14 +1375,7 @@ export default function AdminPanel() {
                             WixConnected: {wixConnected ? '✅' : '❌'}
                         </div>
                     </div>
-                    <Button
-                        onClick={testImageGeneration}
-                        size="sm"
-                        variant="outline"
-                        className="text-xs"
-                    >
-                        🧪 Test Image Gen
-                    </Button>
+
                 </div>
 
                 {/* Stats Cards */}
@@ -1724,7 +1453,7 @@ export default function AdminPanel() {
                                         {orders.length === 0 ? (
                                             <div>
                                                 <p className="text-lg font-medium mb-2">No orders found</p>
-                                                <p className="text-sm">Orders will appear here once they are loaded from the database.</p>
+                                                <p className="text-sm">Orders will appear here once customers place orders through the mousepad customizer.</p>
                                             </div>
                                         ) : (
                                             <div>

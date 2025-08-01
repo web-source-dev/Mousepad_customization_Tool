@@ -10,6 +10,9 @@ export interface CartItem {
   quantity: number;
   price: number;
   currency: 'USD' | 'SGD';
+  // Additional image data for checkout
+  originalImageUrl?: string;
+  customizedImageBase64?: string;
 }
 
 interface CartContextType {

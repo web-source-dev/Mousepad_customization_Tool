@@ -1593,6 +1593,10 @@ export default function AdvancedMousepadCustomizer() {
                                       } : undefined,
                                       text: textElements,
                                       overlays: appliedOverlays,
+                                      // Store the customized image as base64
+                                      customizedImage: finalImage,
+                                      // Store the original image URL
+                                      originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     },
                                     quantity,
                                     price: parseFloat(calculatedPrice.toFixed(2)),
@@ -1633,6 +1637,10 @@ export default function AdvancedMousepadCustomizer() {
                                       } : undefined,
                                       text: textElements,
                                       overlays: appliedOverlays,
+                                      // Store the customized image as base64 (fallback to edited image)
+                                      customizedImage: editedImage || uploadedImage || "/placeholder.svg",
+                                      // Store the original image URL
+                                      originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     },
                                     quantity,
                                     price: parseFloat(getExactMousepadPrice({
@@ -2271,6 +2279,10 @@ export default function AdvancedMousepadCustomizer() {
                                     } : undefined,
                                     text: textElements,
                                     overlays: appliedOverlays,
+                                    // Store the customized image as base64
+                                    customizedImage: finalImage,
+                                    // Store the original image URL
+                                    originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   },
                                   quantity,
                                   price: parseFloat(calculatedPrice.toFixed(2)),
@@ -2311,6 +2323,10 @@ export default function AdvancedMousepadCustomizer() {
                                     } : undefined,
                                     text: textElements,
                                     overlays: appliedOverlays,
+                                    // Store the customized image as base64 (fallback to edited image)
+                                    customizedImage: editedImage || uploadedImage || "/placeholder.svg",
+                                    // Store the original image URL
+                                    originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   },
                                   quantity,
                                   price: parseFloat(getExactMousepadPrice({

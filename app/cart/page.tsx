@@ -79,39 +79,99 @@ export default function CartPage() {
     setShowUserDetailsForm(true);
   };
 
-  const handleUserDetailsSubmit = (userDetails: any) => {
-    const checkoutData = {
-      items,
-      subtotal,
-      shipping,
-      tax,
-      total,
-      currency: items[0]?.currency || 'USD', // Get currency from first item, default to USD
-      user: wixUser,
-      userDetails, // Include the user details form data
-    };
+  const handleUserDetailsSubmit = async (userDetails: any) => {
+    try {
+      // Collect all item data including customized images
+      const itemsWithImages = await Promise.all(
+        items.map(async (item) => {
+          // Get the original uploaded image URL
+          const originalImageUrl = item.image;
+          
+          // Get the customized image base64 (if available in specs)
+          let customizedImageBase64 = null;
+          
+          // Check if the item has a customized image in its specs
+          if (item.specs && item.specs.customizedImage) {
+            customizedImageBase64 = item.specs.customizedImage;
+          } else {
+            // If no customized image is stored, try to generate it from the current image
+            // This is a fallback in case the customization wasn't saved properly
+            customizedImageBase64 = originalImageUrl;
+          }
 
-    if (typeof window !== "undefined" && window.parent) {
-      window.parent.postMessage(
-        {
-          type: "checkoutData",
-          payload: checkoutData,
-        },
-        "*"
+          return {
+            ...item,
+            originalImageUrl,
+            customizedImageBase64,
+            // Include all specs data
+            specs: {
+              ...item.specs,
+              // Ensure we have the image data
+              originalImageUrl,
+              customizedImageBase64
+            }
+          };
+        })
       );
-    }
 
-    setCheckingOut(true);
-    setTimeout(() => {
-      setCheckingOut(false);
-      setShowUserDetailsForm(false);
+      const checkoutData = {
+        items: itemsWithImages,
+        subtotal,
+        shipping,
+        tax,
+        total,
+        currency: items[0]?.currency || 'USD', // Get currency from first item, default to USD
+        user: wixUser,
+        userDetails, // Include the user details form data
+        // Additional metadata
+        orderDate: new Date().toISOString(),
+        orderId: `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        // Include all form data
+        customerInfo: {
+          ...userDetails,
+          wixUserId: wixUser?.id,
+          wixUserEmail: wixUser?.email
+        }
+      };
+
+      console.log('Sending complete checkout data to Wix:', {
+        orderId: checkoutData.orderId,
+        itemCount: checkoutData.items.length,
+        total: checkoutData.total,
+        customerEmail: checkoutData.customerInfo.email
+      });
+
+      if (typeof window !== "undefined" && window.parent) {
+        window.parent.postMessage(
+          {
+            type: "checkoutData",
+            payload: checkoutData,
+          },
+          "*"
+        );
+      }
+
+      setCheckingOut(true);
+      setTimeout(() => {
+        setCheckingOut(false);
+        setShowUserDetailsForm(false);
+        toast &&
+          toast({
+            title: "Checkout Complete",
+            description: "Order data sent to Wix. You will receive a confirmation email shortly.",
+            duration: 3000,
+          });
+      }, 1200);
+    } catch (error) {
+      console.error('Error processing checkout:', error);
       toast &&
         toast({
-          title: "Checkout (Demo)",
-          description: "Checkout data sent to Wix parent site.",
-          duration: 2000,
+          title: "Checkout Error",
+          description: "There was an error processing your order. Please try again.",
+          variant: "destructive",
+          duration: 3000,
         });
-    }, 1200);
+    }
   };
 
   const handleUserDetailsCancel = () => {
