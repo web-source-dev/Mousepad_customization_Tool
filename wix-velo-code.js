@@ -10,9 +10,11 @@ $w.onReady(function () {
     iframeElement = $w("#html1");
 
     iframeElement.onMessage(async (event) => {
+        console.log('📨 Wix received message from iframe:', event.data);
         const { type, data, id } = event.data;
 
         try {
+            console.log('🔄 Processing message type:', type, 'with id:', id);
             switch (type) {
                 case 'IFRAME_READY':
                     handleIframeReady();
@@ -55,8 +57,16 @@ function handleIframeReady() {
 }
 
 function sendMessageToIframe(message) {
-    if (!iframeElement) return;
-    if (!isIframeReady) return pendingMessages.push(message);
+    console.log('📤 Wix: Sending message to iframe:', message.type, message.id);
+    if (!iframeElement) {
+        console.warn('⚠️ Wix: No iframe element found');
+        return;
+    }
+    if (!isIframeReady) {
+        console.log('⏳ Wix: Iframe not ready, queuing message');
+        return pendingMessages.push(message);
+    }
+    console.log('✅ Wix: Sending message to iframe');
     iframeElement.postMessage(message);
 }
 
@@ -80,9 +90,10 @@ async function handleUserDataRequest(messageId) {
             return;
         }
 
+        const email = await currentUser.getEmail();
         const userData = {
             id: currentUser.id,
-            email: currentUser.email,
+            email,
             isLoggedIn: true
         };
 
@@ -132,7 +143,10 @@ async function handleCheckoutData(checkoutData, messageId) {
 
 async function handleFetchOrders(messageId) {
     try {
+        console.log('📋 Wix: Fetching orders from database...');
         const orders = await wixData.query("Orders").ascending("createdAt").find();
+        console.log('📊 Wix: Found', orders.items.length, 'orders in database');
+        
         const transformedOrders = orders.items.map(order => ({
             id: order._id,
             orderId: order._id,
@@ -147,19 +161,24 @@ async function handleFetchOrders(messageId) {
             lastUpdated: order._updatedDate
         }));
 
+        console.log('✅ Wix: Sending', transformedOrders.length, 'orders to iframe');
         sendMessageToIframe({
             type: 'FETCH_ORDERS_RESPONSE',
             data: { orders: transformedOrders },
             id: messageId
         });
-    } catch {
+    } catch (error) {
+        console.error('❌ Wix: Error fetching orders:', error);
         sendErrorToIframe("Failed to fetch orders", messageId);
     }
 }
 
 async function handleFetchUsers(messageId) {
     try {
+        console.log('👥 Wix: Fetching users from database...');
         const users = await wixData.query("Members/PrivateMembersData").ascending("_createdDate").find();
+        console.log('📊 Wix: Found', users.items.length, 'users in database');
+        
         const transformedUsers = users.items.map(user => ({
             id: user._id,
             email: user.email,
@@ -168,12 +187,14 @@ async function handleFetchUsers(messageId) {
             isActive: user.isActive !== false
         }));
 
+        console.log('✅ Wix: Sending', transformedUsers.length, 'users to iframe');
         sendMessageToIframe({
             type: 'FETCH_USERS_RESPONSE',
             data: { users: transformedUsers },
             id: messageId
         });
-    } catch {
+    } catch (error) {
+        console.error('❌ Wix: Error fetching users:', error);
         sendErrorToIframe("Failed to fetch users", messageId);
     }
 }

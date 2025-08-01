@@ -356,31 +356,32 @@ export default function AdminPanel() {
     // Request data from Wix when connected
     useEffect(() => {
         try {
-            // Only request data if Wix is connected and we haven't loaded all data yet
-            if (wixConnected && !dataLoaded) {
-                console.log('🔗 Wix connected, requesting data...');
+            // If Wix is connected, always request real data (even if mock data was loaded)
+            if (wixConnected) {
+                console.log('🔗 Wix connected, requesting real data...');
+                // Reset loading states to allow real data to override mock data
+                setOrdersLoaded(false);
+                setUsersLoaded(false);
+                setDataLoaded(false);
+                
                 // Request orders and users from Wix
                 requestDataFromWix();
 
-                // Set a timeout to handle Wix not responding - only if we haven't already loaded data
-                if (!ordersLoaded || !usersLoaded) {
-                    timeoutRef.current = setTimeout(() => {
-                        // Only fall back to mock data if we haven't received real data yet
-                        if (!ordersLoaded || !usersLoaded) {
-                            console.warn('⏰ Wix data request timeout, falling back to mock data...');
-                            console.log('📊 Current state at timeout:', { ordersLoaded, usersLoaded, dataLoaded });
-                            setLoading(false);
-                            loadData(true); // Load mock data as fallback
-                        } else {
-                            console.log('⏰ Timeout occurred but real data already loaded, skipping fallback');
-                            console.log('📊 Current state at timeout:', { ordersLoaded, usersLoaded, dataLoaded });
-                            setLoading(false);
-                        }
-                    }, 5000); // 5 second timeout
-                } else {
-                    console.log('⏰ Skipping timeout setup - data already loaded');
-                }
-            } else if (!wixConnected) {
+                // Set a timeout to handle Wix not responding
+                timeoutRef.current = setTimeout(() => {
+                    // Only fall back to mock data if we haven't received real data yet
+                    if (!ordersLoaded || !usersLoaded) {
+                        console.warn('⏰ Wix data request timeout, falling back to mock data...');
+                        console.log('📊 Current state at timeout:', { ordersLoaded, usersLoaded, dataLoaded });
+                        setLoading(false);
+                        loadData(true); // Load mock data as fallback
+                    } else {
+                        console.log('⏰ Timeout occurred but real data already loaded, skipping fallback');
+                        console.log('📊 Current state at timeout:', { ordersLoaded, usersLoaded, dataLoaded });
+                        setLoading(false);
+                    }
+                }, 5000); // 5 second timeout
+            } else {
                 console.log('🔌 Wix not connected, loading mock data...');
                 setLoading(false);
                 loadData(true); // Load mock data
@@ -398,7 +399,7 @@ export default function AdminPanel() {
                 timeoutRef.current = null;
             }
         };
-    }, [wixConnected, dataLoaded]);
+    }, [wixConnected]);
 
     // Initialize Wix iframe communication
     const initializeWixCommunication = () => {
@@ -509,7 +510,13 @@ export default function AdminPanel() {
     // Send message to Wix parent
     const sendMessageToWix = (message: any) => {
         try {
-            console.log('📤 Sending message to Wix:', message);
+            console.log('📤 Sending message to Wix:', message.type, message.id);
+            console.log('📋 Message details:', {
+                type: message.type,
+                id: message.id,
+                dataKeys: message.data ? Object.keys(message.data) : 'no data'
+            });
+            
             if (window.parent && window.parent !== window) {
                 // Ensure message is serializable by creating a clean copy
                 const cleanMessage = JSON.parse(JSON.stringify(message));
@@ -542,7 +549,8 @@ export default function AdminPanel() {
             console.log('👤 Requesting user data from Wix...');
             sendMessageToWix({
                 type: 'USER_DATA_REQUEST',
-                data: {}
+                data: {},
+                id: Date.now().toString()
             });
         } catch (error) {
             console.error('❌ Error requesting user data:', error);
@@ -1122,6 +1130,17 @@ export default function AdminPanel() {
             loading
         });
     }, [orders, ordersLoaded, usersLoaded, dataLoaded, loading]);
+
+    // Monitor Wix connection state
+    useEffect(() => {
+        console.log('🔗 Wix connection state changed:', {
+            wixConnected,
+            ordersLoaded,
+            usersLoaded,
+            dataLoaded,
+            loading
+        });
+    }, [wixConnected, ordersLoaded, usersLoaded, dataLoaded, loading]);
 
     // Ensure filteredOrders is set when orders are loaded and no filtering is applied
     useEffect(() => {
