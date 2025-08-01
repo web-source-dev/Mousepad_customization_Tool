@@ -1320,7 +1320,7 @@ export default function AdminPanel() {
                     throw new Error('Canvas context not available');
                 }
 
-                // Set canvas size based on mousepad size
+                // Set canvas size based on mousepad size - use actual dimensions
                 const sizeMap: { [key: string]: { width: number; height: number } } = {
                     '400x800': { width: 400, height: 800 },
                     '400x900': { width: 400, height: 900 },
@@ -1344,23 +1344,49 @@ export default function AdminPanel() {
                 // Fill background based on type
                 if (item.specs.type === 'rgb') {
                     console.log('🎨 Creating RGB background with specs:', item.specs.rgb);
-                    // Create gradient background for RGB mousepads
-                    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                    
+                    // Create RGB border effect - draw a thicker border with RGB colors
+                    const borderWidth = 20; // RGB border thickness
+                    
                     if (item.specs.rgb?.mode === 'rainbow') {
-                        gradient.addColorStop(0, '#ff0000');
-                        gradient.addColorStop(0.17, '#ff8000');
-                        gradient.addColorStop(0.33, '#ffff00');
-                        gradient.addColorStop(0.5, '#00ff00');
-                        gradient.addColorStop(0.67, '#0080ff');
-                        gradient.addColorStop(0.83, '#8000ff');
-                        gradient.addColorStop(1, '#ff0080');
+                        // Create rainbow border
+                        const borderGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                        borderGradient.addColorStop(0, '#ff0000');
+                        borderGradient.addColorStop(0.17, '#ff8000');
+                        borderGradient.addColorStop(0.33, '#ffff00');
+                        borderGradient.addColorStop(0.5, '#00ff00');
+                        borderGradient.addColorStop(0.67, '#0080ff');
+                        borderGradient.addColorStop(0.83, '#8000ff');
+                        borderGradient.addColorStop(1, '#ff0080');
+                        
+                        // Fill entire canvas with rainbow border
+                        ctx.fillStyle = borderGradient;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Create inner background (slightly smaller to show border)
+                        const innerGradient = ctx.createLinearGradient(borderWidth, borderWidth, canvas.width - borderWidth, canvas.height - borderWidth);
+                        innerGradient.addColorStop(0, '#ff0000');
+                        innerGradient.addColorStop(0.17, '#ff8000');
+                        innerGradient.addColorStop(0.33, '#ffff00');
+                        innerGradient.addColorStop(0.5, '#00ff00');
+                        innerGradient.addColorStop(0.67, '#0080ff');
+                        innerGradient.addColorStop(0.83, '#8000ff');
+                        innerGradient.addColorStop(1, '#ff0080');
+                        
+                        ctx.fillStyle = innerGradient;
+                        ctx.fillRect(borderWidth, borderWidth, canvas.width - (borderWidth * 2), canvas.height - (borderWidth * 2));
                     } else {
+                        // Single color RGB
                         const color = item.specs.rgb?.color || '#ffffff';
-                        gradient.addColorStop(0, color);
-                        gradient.addColorStop(1, color);
+                        
+                        // Fill entire canvas with color border
+                        ctx.fillStyle = color;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Create inner background
+                        ctx.fillStyle = color;
+                        ctx.fillRect(borderWidth, borderWidth, canvas.width - (borderWidth * 2), canvas.height - (borderWidth * 2));
                     }
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                 } else {
                     // Solid color background
                     ctx.fillStyle = '#ffffff';
@@ -1373,6 +1399,8 @@ export default function AdminPanel() {
                     item.specs.text.forEach((textElement, textIndex) => {
                         try {
                             console.log(`📝 Drawing text ${textIndex + 1}:`, textElement);
+                            
+                            // Calculate position based on percentage
                             const x = (textElement.position.x / 100) * canvas.width;
                             const y = (textElement.position.y / 100) * canvas.height;
 
@@ -1380,8 +1408,8 @@ export default function AdminPanel() {
                             ctx.translate(x, y);
                             ctx.rotate((textElement.rotation * Math.PI) / 180);
 
-                            // Set font - ensure minimum readable size
-                            const fontSize = Math.max(16, Math.min(72, textElement.size || 24));
+                            // Set font - use actual size from specs
+                            const fontSize = Math.max(12, Math.min(100, textElement.size || 24));
                             ctx.font = `${fontSize}px ${textElement.font || 'Arial'}`;
 
                             // Apply opacity
@@ -1416,36 +1444,57 @@ export default function AdminPanel() {
                     console.log('📝 No text elements to draw');
                 }
 
-                // Draw overlays if available
+                // Draw overlays if available - handle base64 properly
                 if (item.specs.overlays && item.specs.overlays.length > 0) {
                     console.log('🖼️ Drawing overlays:', item.specs.overlays.length);
                     for (let overlayIndex = 0; overlayIndex < item.specs.overlays.length; overlayIndex++) {
                         const overlayData = item.specs.overlays[overlayIndex];
                         try {
-                            console.log(`🖼️ Loading overlay ${overlayIndex + 1}:`, overlayData.substring(0, 50) + '...');
+                            console.log(`🖼️ Loading overlay ${overlayIndex + 1}:`, overlayData.substring(0, 100) + '...');
+                            
                             const img = new Image();
                             img.crossOrigin = 'anonymous';
 
                             await new Promise((resolve, reject) => {
                                 img.onload = () => {
-                                    console.log(`✅ Overlay ${overlayIndex + 1} loaded successfully`);
+                                    console.log(`✅ Overlay ${overlayIndex + 1} loaded successfully, size:`, img.width, 'x', img.height);
                                     resolve(null);
                                 };
                                 img.onerror = (error) => {
                                     console.warn(`❌ Failed to load overlay ${overlayIndex + 1}:`, error);
                                     reject(error);
                                 };
-                                img.src = overlayData;
+                                
+                                // Handle base64 data properly
+                                if (overlayData.startsWith('data:image/')) {
+                                    img.src = overlayData;
+                                } else if (overlayData.startsWith('data:image/png;base64,')) {
+                                    img.src = overlayData;
+                                } else {
+                                    // Try to convert to proper base64 format
+                                    img.src = `data:image/png;base64,${overlayData}`;
+                                }
                             });
 
-                            // Draw overlay in center
-                            const overlayWidth = img.width * 0.5; // Scale down overlay
-                            const overlayHeight = img.height * 0.5;
+                            // Draw overlay in center with proper scaling
+                            const maxOverlayWidth = canvas.width * 0.6; // 60% of canvas width
+                            const maxOverlayHeight = canvas.height * 0.6; // 60% of canvas height
+                            
+                            let overlayWidth = img.width;
+                            let overlayHeight = img.height;
+                            
+                            // Scale down if too large
+                            if (overlayWidth > maxOverlayWidth || overlayHeight > maxOverlayHeight) {
+                                const scale = Math.min(maxOverlayWidth / overlayWidth, maxOverlayHeight / overlayHeight);
+                                overlayWidth = img.width * scale;
+                                overlayHeight = img.height * scale;
+                            }
+                            
                             const overlayX = (canvas.width - overlayWidth) / 2;
                             const overlayY = (canvas.height - overlayHeight) / 2;
 
                             ctx.drawImage(img, overlayX, overlayY, overlayWidth, overlayHeight);
-                            console.log(`✅ Overlay ${overlayIndex + 1} drawn successfully`);
+                            console.log(`✅ Overlay ${overlayIndex + 1} drawn successfully at:`, overlayX, overlayY, overlayWidth, overlayHeight);
                         } catch (error) {
                             console.warn('⚠️ Failed to load overlay:', error);
                         }
@@ -1538,13 +1587,13 @@ export default function AdminPanel() {
                     name: 'Test Mousepad',
                     image: '/placeholder.svg',
                     specs: {
-                        size: '400x800',
-                        thickness: '4mm',
+                        size: '400x900', // Match the size from your screenshot
+                        thickness: '5mm',
                         type: 'rgb',
                         rgb: {
                             mode: 'rainbow',
                             color: '#ff0000',
-                            brightness: 100,
+                            brightness: 80,
                             animationSpeed: 50
                         },
                         text: [{
@@ -1553,7 +1602,7 @@ export default function AdminPanel() {
                             type: 'text',
                             color: '#000000',
                             font: 'Arial',
-                            size: 24,
+                            size: 72,
                             position: { x: 50, y: 50 },
                             rotation: 0,
                             opacity: 100,
@@ -1579,12 +1628,12 @@ export default function AdminPanel() {
                         overlays: []
                     },
                     quantity: 1,
-                    price: 50
+                    price: 97
                 }],
-                subtotal: 50,
+                subtotal: 97,
                 shipping: 0,
-                tax: 4,
-                total: 54,
+                tax: 7.76,
+                total: 104.76,
                 currency: 'USD',
                 userDetails: { email: 'test@example.com' },
                 previewImages: []
@@ -1602,9 +1651,19 @@ export default function AdminPanel() {
                 link.click();
                 document.body.removeChild(link);
                 console.log('🧪 Test image downloaded');
+                
+                toast({
+                    title: "Test Image Generated",
+                    description: "Test mousepad image has been generated and downloaded",
+                });
             }
         } catch (error) {
             console.error('🧪 Test image generation failed:', error);
+            toast({
+                title: "Test Failed",
+                description: "Failed to generate test image",
+                variant: "destructive",
+            });
         }
     };
 
@@ -1985,18 +2044,31 @@ export default function AdminPanel() {
                                                                                 alt={`Original uploaded image for item ${itemIndex + 1}`}
                                                                                 className="w-full h-48 object-contain border border-gray-200 rounded-lg shadow-sm"
                                                                                 onError={(e) => {
-                                                                                    console.warn('⚠️ Failed to load original image for order:', order.id, 'item:', itemIndex);
+                                                                                    console.warn('⚠️ Failed to load original image for order:', order.id, 'item:', itemIndex, 'URL:', item.image);
                                                                                     e.currentTarget.src = '/placeholder.svg';
+                                                                                }}
+                                                                                onLoad={() => {
+                                                                                    console.log('✅ Original image loaded successfully for order:', order.id, 'item:', itemIndex);
                                                                                 }}
                                                                             />
                                                                             <Button
                                                                                 onClick={() => {
-                                                                                    const link = document.createElement('a');
-                                                                                    link.href = item.image;
-                                                                                    link.download = `original-${order.id}-item-${itemIndex + 1}.png`;
-                                                                                    document.body.appendChild(link);
-                                                                                    link.click();
-                                                                                    document.body.removeChild(link);
+                                                                                    try {
+                                                                                        const link = document.createElement('a');
+                                                                                        link.href = item.image;
+                                                                                        link.download = `original-${order.id}-item-${itemIndex + 1}.png`;
+                                                                                        document.body.appendChild(link);
+                                                                                        link.click();
+                                                                                        document.body.removeChild(link);
+                                                                                        console.log('✅ Original image download initiated');
+                                                                                    } catch (error) {
+                                                                                        console.error('❌ Failed to download original image:', error);
+                                                                                        toast({
+                                                                                            title: "Download Failed",
+                                                                                            description: "Failed to download original image",
+                                                                                            variant: "destructive",
+                                                                                        });
+                                                                                    }
                                                                                 }}
                                                                                 size="sm"
                                                                                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
