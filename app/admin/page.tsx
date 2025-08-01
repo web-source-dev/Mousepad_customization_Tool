@@ -82,7 +82,7 @@ interface Order {
     total: number;
     currency: 'USD';
     userDetails: UserDetails;
-    previewImage: string;
+    previewImages: string[];
 }
 
 interface User {
@@ -184,13 +184,13 @@ const generateMockOrders = (): Order[] => {
             tax,
             total,
             currency: 'USD' as const,
-            previewImage: `data:image/svg+xml;base64,${btoa(`
+            previewImages: [`data:image/svg+xml;base64,${btoa(`
         <svg width="400" height="800" xmlns="http://www.w3.org/2000/svg">
           <rect width="100%" height="100%" fill="${theme === 'Gaming' ? '#1a1a2e' : theme === 'Nature' ? '#2d5016' : theme === 'Space' ? '#0a0a23' : theme === 'Abstract' ? '#4a148c' : '#f5f5f5'}"/>
           <text x="200" y="400" text-anchor="middle" fill="white" font-family="Arial" font-size="24">${theme} Design</text>
           <text x="200" y="430" text-anchor="middle" fill="white" font-family="Arial" font-size="18">${size}</text>
         </svg>
-      `)}`,
+      `)}`],
             userDetails: {
                 email: customerEmail
             }
@@ -709,6 +709,45 @@ export default function AdminPanel() {
     };
 
     // Handle fetch orders response from Wix
+    const generateImagesForOrders = async (orders: Order[]) => {
+        try {
+            console.log('🎨 Starting image generation for', orders.length, 'orders');
+            
+            for (let i = 0; i < orders.length; i++) {
+                const order = orders[i];
+                try {
+                    console.log(`🎨 Generating images for order ${i + 1}/${orders.length}:`, order.id);
+                    const generatedImages = await generateMousepadImage(order);
+                    
+                    // Update the order with generated images
+                    setOrders(prevOrders => 
+                        prevOrders.map(o => 
+                            o.id === order.id 
+                                ? { ...o, previewImages: generatedImages }
+                                : o
+                        )
+                    );
+                    
+                    setFilteredOrders(prevFiltered => 
+                        prevFiltered.map(o => 
+                            o.id === order.id 
+                                ? { ...o, previewImages: generatedImages }
+                                : o
+                        )
+                    );
+                    
+                    console.log(`✅ Generated ${generatedImages.length} images for order ${order.id}`);
+                } catch (error) {
+                    console.error(`❌ Error generating images for order ${order.id}:`, error);
+                }
+            }
+            
+            console.log('🎨 Completed image generation for all orders');
+        } catch (error) {
+            console.error('❌ Error in generateImagesForOrders:', error);
+        }
+    };
+
     const handleFetchOrdersResponse = (data: any) => {
         try {
             console.log('📋 Fetch orders response from Wix:', data);
@@ -787,7 +826,7 @@ export default function AdminPanel() {
                             userDetails: {
                                 email: String(wixOrder.customerEmail || '')
                             },
-                            previewImage: String(wixOrder.items?.[0]?.image || '')
+                            previewImages: ['/placeholder.svg'] // Will be generated after order is created
                         };
                     } catch (itemError) {
                         console.error('❌ Error processing order item:', itemError);
@@ -800,6 +839,9 @@ export default function AdminPanel() {
                 setOrders(transformedOrders);
                 setFilteredOrders(transformedOrders);
                 setOrdersLoaded(true);
+
+                // Generate images for all orders
+                generateImagesForOrders(transformedOrders);
 
                 // Check if both orders and users are loaded
                 if (usersLoaded) {
@@ -1096,6 +1138,9 @@ export default function AdminPanel() {
                 setOrdersLoaded(true);
                 setUsersLoaded(true);
                 setDataLoaded(true);
+
+                // Generate images for mock orders
+                generateImagesForOrders(mockOrders);
             }
         } catch (error) {
             console.error('❌ Error loading data:', error);
@@ -1111,6 +1156,9 @@ export default function AdminPanel() {
                 setOrdersLoaded(true);
                 setUsersLoaded(true);
                 setDataLoaded(true);
+
+                // Generate images for mock orders (error fallback)
+                generateImagesForOrders(mockOrders);
             } else {
                 console.log('✅ Skipping mock data load due to error - real data already loaded');
             }
@@ -1253,151 +1301,176 @@ export default function AdminPanel() {
         }
     }, [users, userSearchTerm]);
 
-    const generateMousepadImage = async (order: Order): Promise<string> => {
+    const generateMousepadImage = async (order: Order): Promise<string[]> => {
         try {
-            console.log('🎨 Generating mousepad image for order:', order.id);
+            console.log('🎨 Generating mousepad images for order:', order.id);
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Canvas context not available');
-            }
+            const generatedImages: string[] = [];
 
-            // Set canvas size based on mousepad size
-            const sizeMap: { [key: string]: { width: number; height: number } } = {
-                '400x800': { width: 400, height: 800 },
-                '500x800': { width: 500, height: 800 },
-                '500x1000': { width: 500, height: 1000 },
-                '600x800': { width: 600, height: 800 },
-                '600x1000': { width: 600, height: 1000 },
-                '800x800': { width: 800, height: 800 },
-                '900x400': { width: 900, height: 400 },
-                '1000x500': { width: 1000, height: 500 },
-                '1000x400': { width: 1000, height: 400 }
-            };
+            // Generate image for each item in the order
+            for (let itemIndex = 0; itemIndex < order.items.length; itemIndex++) {
+                const item = order.items[itemIndex];
+                console.log(`📦 Generating image for item ${itemIndex + 1}/${order.items.length}:`, item.id);
 
-            const item = order.items[0];
-            const size = item.specs.size;
-            const dimensions = sizeMap[size] || { width: 400, height: 800 };
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    throw new Error('Canvas context not available');
+                }
 
-            canvas.width = dimensions.width;
-            canvas.height = dimensions.height;
+                // Set canvas size based on mousepad size
+                const sizeMap: { [key: string]: { width: number; height: number } } = {
+                    '400x800': { width: 400, height: 800 },
+                    '400x900': { width: 400, height: 900 },
+                    '500x800': { width: 500, height: 800 },
+                    '500x1000': { width: 500, height: 1000 },
+                    '600x800': { width: 600, height: 800 },
+                    '600x1000': { width: 600, height: 1000 },
+                    '800x800': { width: 800, height: 800 },
+                    '900x400': { width: 900, height: 400 },
+                    '1000x500': { width: 1000, height: 500 },
+                    '1000x400': { width: 1000, height: 400 }
+                };
 
-            // Fill background based on type
-            if (item.specs.type === 'rgb') {
-                // Create gradient background for RGB mousepads
-                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-                if (item.specs.rgb?.mode === 'rainbow') {
-                    gradient.addColorStop(0, '#ff0000');
-                    gradient.addColorStop(0.17, '#ff8000');
-                    gradient.addColorStop(0.33, '#ffff00');
-                    gradient.addColorStop(0.5, '#00ff00');
-                    gradient.addColorStop(0.67, '#0080ff');
-                    gradient.addColorStop(0.83, '#8000ff');
-                    gradient.addColorStop(1, '#ff0080');
+                const size = item.specs.size;
+                const dimensions = sizeMap[size] || { width: 400, height: 800 };
+
+                canvas.width = dimensions.width;
+                canvas.height = dimensions.height;
+
+                // Fill background based on type
+                if (item.specs.type === 'rgb') {
+                    // Create gradient background for RGB mousepads
+                    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                    if (item.specs.rgb?.mode === 'rainbow') {
+                        gradient.addColorStop(0, '#ff0000');
+                        gradient.addColorStop(0.17, '#ff8000');
+                        gradient.addColorStop(0.33, '#ffff00');
+                        gradient.addColorStop(0.5, '#00ff00');
+                        gradient.addColorStop(0.67, '#0080ff');
+                        gradient.addColorStop(0.83, '#8000ff');
+                        gradient.addColorStop(1, '#ff0080');
+                    } else {
+                        const color = item.specs.rgb?.color || '#ffffff';
+                        gradient.addColorStop(0, color);
+                        gradient.addColorStop(1, color);
+                    }
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                 } else {
-                    const color = item.specs.rgb?.color || '#ffffff';
-                    gradient.addColorStop(0, color);
-                    gradient.addColorStop(1, color);
+                    // Solid color background
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            } else {
-                // Solid color background
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
 
-            // Draw text elements
-            if (item.specs.text && Array.isArray(item.specs.text)) {
-                item.specs.text.forEach((textElement) => {
-                    const x = (textElement.position.x / 100) * canvas.width;
-                    const y = (textElement.position.y / 100) * canvas.height;
+                // Draw text elements
+                if (item.specs.text && Array.isArray(item.specs.text)) {
+                    item.specs.text.forEach((textElement) => {
+                        const x = (textElement.position.x / 100) * canvas.width;
+                        const y = (textElement.position.y / 100) * canvas.height;
 
-                    ctx.save();
-                    ctx.translate(x, y);
-                    ctx.rotate((textElement.rotation * Math.PI) / 180);
+                        ctx.save();
+                        ctx.translate(x, y);
+                        ctx.rotate((textElement.rotation * Math.PI) / 180);
 
-                    // Set font
-                    const fontSize = (textElement.size / 100) * Math.min(canvas.width, canvas.height);
-                    ctx.font = `${fontSize}px ${textElement.font}`;
+                        // Set font
+                        const fontSize = (textElement.size / 100) * Math.min(canvas.width, canvas.height);
+                        ctx.font = `${fontSize}px ${textElement.font}`;
 
-                    // Apply opacity
-                    ctx.globalAlpha = textElement.opacity / 100;
+                        // Apply opacity
+                        ctx.globalAlpha = textElement.opacity / 100;
 
-                    // Draw shadow if enabled
-                    if (textElement.shadow?.enabled) {
-                        ctx.shadowColor = textElement.shadow.color;
-                        ctx.shadowBlur = textElement.shadow.blur;
-                        ctx.shadowOffsetX = textElement.shadow.x;
-                        ctx.shadowOffsetY = textElement.shadow.y;
-                    }
+                        // Draw shadow if enabled
+                        if (textElement.shadow?.enabled) {
+                            ctx.shadowColor = textElement.shadow.color;
+                            ctx.shadowBlur = textElement.shadow.blur;
+                            ctx.shadowOffsetX = textElement.shadow.x;
+                            ctx.shadowOffsetY = textElement.shadow.y;
+                        }
 
-                    // Draw outline if enabled
-                    if (textElement.outline?.enabled) {
-                        ctx.strokeStyle = textElement.outline.color;
-                        ctx.lineWidth = textElement.outline.width;
-                        ctx.strokeText(textElement.text, 0, 0);
-                    }
+                        // Draw outline if enabled
+                        if (textElement.outline?.enabled) {
+                            ctx.strokeStyle = textElement.outline.color;
+                            ctx.lineWidth = textElement.outline.width;
+                            ctx.strokeText(textElement.text, 0, 0);
+                        }
 
-                    // Draw main text
-                    ctx.fillStyle = textElement.color;
-                    ctx.fillText(textElement.text, 0, 0);
+                        // Draw main text
+                        ctx.fillStyle = textElement.color;
+                        ctx.fillText(textElement.text, 0, 0);
 
-                    ctx.restore();
-                });
-            }
+                        ctx.restore();
+                    });
+                }
 
-            // Draw overlays if available
-            if (item.specs.overlays && item.specs.overlays.length > 0) {
-                for (const overlayData of item.specs.overlays) {
-                    try {
-                        const img = new Image();
-                        img.crossOrigin = 'anonymous';
+                // Draw overlays if available
+                if (item.specs.overlays && item.specs.overlays.length > 0) {
+                    for (const overlayData of item.specs.overlays) {
+                        try {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
 
-                        await new Promise((resolve, reject) => {
-                            img.onload = resolve;
-                            img.onerror = reject;
-                            img.src = overlayData;
-                        });
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = reject;
+                                img.src = overlayData;
+                            });
 
-                        // Draw overlay in center
-                        const overlayWidth = img.width * 0.3; // Scale down overlay
-                        const overlayHeight = img.height * 0.3;
-                        const overlayX = (canvas.width - overlayWidth) / 2;
-                        const overlayY = (canvas.height - overlayHeight) / 2;
+                            // Draw overlay in center
+                            const overlayWidth = img.width * 0.3; // Scale down overlay
+                            const overlayHeight = img.height * 0.3;
+                            const overlayX = (canvas.width - overlayWidth) / 2;
+                            const overlayY = (canvas.height - overlayHeight) / 2;
 
-                        ctx.drawImage(img, overlayX, overlayY, overlayWidth, overlayHeight);
-                    } catch (error) {
-                        console.warn('⚠️ Failed to load overlay:', error);
+                            ctx.drawImage(img, overlayX, overlayY, overlayWidth, overlayHeight);
+                        } catch (error) {
+                            console.warn('⚠️ Failed to load overlay:', error);
+                        }
                     }
                 }
+
+                const imageDataUrl = canvas.toDataURL('image/png', 1.0);
+                generatedImages.push(imageDataUrl);
+                console.log(`✅ Generated image ${itemIndex + 1} for order ${order.id}`);
             }
 
-            console.log('✅ Mousepad image generated successfully');
-            return canvas.toDataURL('image/png', 1.0);
+            console.log(`✅ Generated ${generatedImages.length} images for order ${order.id}`);
+            return generatedImages;
         } catch (error) {
-            console.error('❌ Error generating mousepad image:', error);
-            return '/placeholder.svg';
+            console.error('❌ Error generating mousepad images:', error);
+            return ['/placeholder.svg'];
         }
     };
 
     const handleDownloadImage = async (order: Order) => {
         try {
-            console.log('📥 Downloading image for order:', order.id);
+            console.log('📥 Downloading images for order:', order.id);
 
-            // Generate the mousepad image from order data
-            const imageDataUrl = await generateMousepadImage(order);
+            // Generate the mousepad images from order data
+            const imageDataUrls = await generateMousepadImage(order);
 
-            const link = document.createElement('a');
-            link.href = imageDataUrl;
-            link.download = `mousepad-${order.id}-${order.items[0].specs.size}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            console.log('✅ Image download initiated');
+            // Download each image
+            imageDataUrls.forEach((imageDataUrl, index) => {
+                const link = document.createElement('a');
+                link.href = imageDataUrl;
+                link.download = `mousepad-${order.id}-item-${index + 1}-${order.items[index]?.specs.size || 'custom'}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+            console.log('✅ Image downloads initiated');
+            toast({
+                title: "Download Started",
+                description: `Downloading ${imageDataUrls.length} image(s) for order ${order.id}`,
+            });
         } catch (error) {
-            console.error('❌ Error downloading image:', error);
+            console.error('❌ Error downloading images:', error);
+            toast({
+                title: "Download Failed",
+                description: "Failed to download images. Please try again.",
+                variant: "destructive",
+            });
         }
     };
 
@@ -1716,16 +1789,31 @@ export default function AdminPanel() {
                                                     <Eye className="h-4 w-4 text-gray-500" />
                                                     <span className="font-medium text-sm">Custom Design Preview</span>
                                                 </div>
-                                                <div className="flex justify-center">
-                                                    <img
-                                                        src={order.previewImage || '/placeholder.svg'}
-                                                        alt={`Mousepad design for order ${order.id}`}
-                                                        className="w-48 h-32 object-contain border border-gray-200 rounded-lg shadow-sm"
-                                                        onError={(e) => {
-                                                            console.warn('⚠️ Failed to load preview image for order:', order.id);
-                                                            e.currentTarget.src = '/placeholder.svg';
-                                                        }}
-                                                    />
+                                                <div className="flex flex-wrap gap-2 justify-center">
+                                                    {order.previewImages && order.previewImages.length > 0 ? (
+                                                        order.previewImages.map((imageUrl, imageIndex) => (
+                                                            <div key={imageIndex} className="relative">
+                                                                <img
+                                                                    src={imageUrl}
+                                                                    alt={`Mousepad design ${imageIndex + 1} for order ${order.id}`}
+                                                                    className="w-56 h-40 object-contain border border-gray-200 rounded-lg shadow-sm"
+                                                                    onError={(e) => {
+                                                                        console.warn('⚠️ Failed to load preview image for order:', order.id, 'image:', imageIndex);
+                                                                        e.currentTarget.src = '/placeholder.svg';
+                                                                    }}
+                                                                />
+                                                                {order.items.length > 1 && (
+                                                                    <div className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1 py-0.5 rounded">
+                                                                        {imageIndex + 1}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="w-56 h-40 border border-gray-200 rounded-lg shadow-sm flex items-center justify-center bg-gray-50">
+                                                            <span className="text-gray-500 text-sm">No preview available</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
