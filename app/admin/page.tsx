@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Download, Search, Filter, Calendar, User, Package, DollarSign, Edit, Users, Settings, Eye, Mail, Phone, MapPin } from 'lucide-react';
+import { Download, Search, Filter, Calendar, User, Package, DollarSign, Edit, Users, Settings, Eye, Mail, Phone, MapPin, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
@@ -264,6 +264,7 @@ export default function AdminPanel() {
     const [ordersLoaded, setOrdersLoaded] = useState(false);
     const [usersLoaded, setUsersLoaded] = useState(false);
     const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set());
+    const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
     // Error boundary effect
@@ -1311,6 +1312,7 @@ export default function AdminPanel() {
             for (let itemIndex = 0; itemIndex < order.items.length; itemIndex++) {
                 const item = order.items[itemIndex];
                 console.log(`📦 Generating image for item ${itemIndex + 1}/${order.items.length}:`, item.id);
+                console.log('📋 Item specs:', JSON.stringify(item.specs, null, 2));
 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -1334,12 +1336,14 @@ export default function AdminPanel() {
 
                 const size = item.specs.size;
                 const dimensions = sizeMap[size] || { width: 400, height: 800 };
+                console.log('📏 Canvas dimensions:', dimensions);
 
                 canvas.width = dimensions.width;
                 canvas.height = dimensions.height;
 
                 // Fill background based on type
                 if (item.specs.type === 'rgb') {
+                    console.log('🎨 Creating RGB background with specs:', item.specs.rgb);
                     // Create gradient background for RGB mousepads
                     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
                     if (item.specs.rgb?.mode === 'rainbow') {
@@ -1364,69 +1368,90 @@ export default function AdminPanel() {
                 }
 
                 // Draw text elements
-                if (item.specs.text && Array.isArray(item.specs.text)) {
-                    item.specs.text.forEach((textElement) => {
-                        const x = (textElement.position.x / 100) * canvas.width;
-                        const y = (textElement.position.y / 100) * canvas.height;
+                if (item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0) {
+                    console.log('📝 Drawing text elements:', item.specs.text.length);
+                    item.specs.text.forEach((textElement, textIndex) => {
+                        try {
+                            console.log(`📝 Drawing text ${textIndex + 1}:`, textElement);
+                            const x = (textElement.position.x / 100) * canvas.width;
+                            const y = (textElement.position.y / 100) * canvas.height;
 
-                        ctx.save();
-                        ctx.translate(x, y);
-                        ctx.rotate((textElement.rotation * Math.PI) / 180);
+                            ctx.save();
+                            ctx.translate(x, y);
+                            ctx.rotate((textElement.rotation * Math.PI) / 180);
 
-                        // Set font
-                        const fontSize = (textElement.size / 100) * Math.min(canvas.width, canvas.height);
-                        ctx.font = `${fontSize}px ${textElement.font}`;
+                            // Set font - ensure minimum readable size
+                            const fontSize = Math.max(16, Math.min(72, textElement.size || 24));
+                            ctx.font = `${fontSize}px ${textElement.font || 'Arial'}`;
 
-                        // Apply opacity
-                        ctx.globalAlpha = textElement.opacity / 100;
+                            // Apply opacity
+                            ctx.globalAlpha = (textElement.opacity || 100) / 100;
 
-                        // Draw shadow if enabled
-                        if (textElement.shadow?.enabled) {
-                            ctx.shadowColor = textElement.shadow.color;
-                            ctx.shadowBlur = textElement.shadow.blur;
-                            ctx.shadowOffsetX = textElement.shadow.x;
-                            ctx.shadowOffsetY = textElement.shadow.y;
+                            // Draw shadow if enabled
+                            if (textElement.shadow?.enabled) {
+                                ctx.shadowColor = textElement.shadow.color || '#000000';
+                                ctx.shadowBlur = textElement.shadow.blur || 4;
+                                ctx.shadowOffsetX = textElement.shadow.x || 2;
+                                ctx.shadowOffsetY = textElement.shadow.y || 2;
+                            }
+
+                            // Draw outline if enabled
+                            if (textElement.outline?.enabled) {
+                                ctx.strokeStyle = textElement.outline.color || '#ffffff';
+                                ctx.lineWidth = textElement.outline.width || 1;
+                                ctx.strokeText(textElement.text, 0, 0);
+                            }
+
+                            // Draw main text
+                            ctx.fillStyle = textElement.color || '#000000';
+                            ctx.fillText(textElement.text, 0, 0);
+
+                            ctx.restore();
+                            console.log(`✅ Text ${textIndex + 1} drawn successfully`);
+                        } catch (error) {
+                            console.warn('⚠️ Error drawing text element:', error);
                         }
-
-                        // Draw outline if enabled
-                        if (textElement.outline?.enabled) {
-                            ctx.strokeStyle = textElement.outline.color;
-                            ctx.lineWidth = textElement.outline.width;
-                            ctx.strokeText(textElement.text, 0, 0);
-                        }
-
-                        // Draw main text
-                        ctx.fillStyle = textElement.color;
-                        ctx.fillText(textElement.text, 0, 0);
-
-                        ctx.restore();
                     });
+                } else {
+                    console.log('📝 No text elements to draw');
                 }
 
                 // Draw overlays if available
                 if (item.specs.overlays && item.specs.overlays.length > 0) {
-                    for (const overlayData of item.specs.overlays) {
+                    console.log('🖼️ Drawing overlays:', item.specs.overlays.length);
+                    for (let overlayIndex = 0; overlayIndex < item.specs.overlays.length; overlayIndex++) {
+                        const overlayData = item.specs.overlays[overlayIndex];
                         try {
+                            console.log(`🖼️ Loading overlay ${overlayIndex + 1}:`, overlayData.substring(0, 50) + '...');
                             const img = new Image();
                             img.crossOrigin = 'anonymous';
 
                             await new Promise((resolve, reject) => {
-                                img.onload = resolve;
-                                img.onerror = reject;
+                                img.onload = () => {
+                                    console.log(`✅ Overlay ${overlayIndex + 1} loaded successfully`);
+                                    resolve(null);
+                                };
+                                img.onerror = (error) => {
+                                    console.warn(`❌ Failed to load overlay ${overlayIndex + 1}:`, error);
+                                    reject(error);
+                                };
                                 img.src = overlayData;
                             });
 
                             // Draw overlay in center
-                            const overlayWidth = img.width * 0.3; // Scale down overlay
-                            const overlayHeight = img.height * 0.3;
+                            const overlayWidth = img.width * 0.5; // Scale down overlay
+                            const overlayHeight = img.height * 0.5;
                             const overlayX = (canvas.width - overlayWidth) / 2;
                             const overlayY = (canvas.height - overlayHeight) / 2;
 
                             ctx.drawImage(img, overlayX, overlayY, overlayWidth, overlayHeight);
+                            console.log(`✅ Overlay ${overlayIndex + 1} drawn successfully`);
                         } catch (error) {
                             console.warn('⚠️ Failed to load overlay:', error);
                         }
                     }
+                } else {
+                    console.log('🖼️ No overlays to draw');
                 }
 
                 const imageDataUrl = canvas.toDataURL('image/png', 1.0);
@@ -1484,6 +1509,102 @@ export default function AdminPanel() {
             setIsUpdateDialogOpen(true);
         } catch (error) {
             console.error('❌ Error opening update dialog:', error);
+        }
+    };
+
+    const toggleExpandedOrder = (orderId: string) => {
+        setExpandedOrders(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(orderId)) {
+                newSet.delete(orderId);
+            } else {
+                newSet.add(orderId);
+            }
+            return newSet;
+        });
+    };
+
+    // Test function to verify image generation
+    const testImageGeneration = async () => {
+        try {
+            console.log('🧪 Testing image generation...');
+            const testOrder: Order = {
+                id: 'test-order',
+                customerEmail: 'test@example.com',
+                orderDate: new Date(),
+                status: 'pending',
+                items: [{
+                    id: 'test-item',
+                    name: 'Test Mousepad',
+                    image: '/placeholder.svg',
+                    specs: {
+                        size: '400x800',
+                        thickness: '4mm',
+                        type: 'rgb',
+                        rgb: {
+                            mode: 'rainbow',
+                            color: '#ff0000',
+                            brightness: 100,
+                            animationSpeed: 50
+                        },
+                        text: [{
+                            id: 1,
+                            text: 'Test Text',
+                            type: 'text',
+                            color: '#000000',
+                            font: 'Arial',
+                            size: 24,
+                            position: { x: 50, y: 50 },
+                            rotation: 0,
+                            opacity: 100,
+                            shadow: {
+                                enabled: false,
+                                color: '#000000',
+                                blur: 4,
+                                x: 2,
+                                y: 2
+                            },
+                            outline: {
+                                enabled: false,
+                                color: '#ffffff',
+                                width: 1
+                            },
+                            gradient: {
+                                enabled: false,
+                                direction: 'horizontal',
+                                from: '#ff0000',
+                                to: '#0000ff'
+                            }
+                        }],
+                        overlays: []
+                    },
+                    quantity: 1,
+                    price: 50
+                }],
+                subtotal: 50,
+                shipping: 0,
+                tax: 4,
+                total: 54,
+                currency: 'USD',
+                userDetails: { email: 'test@example.com' },
+                previewImages: []
+            };
+
+            const generatedImages = await generateMousepadImage(testOrder);
+            console.log('🧪 Test image generation result:', generatedImages);
+            
+            // Create a test download
+            if (generatedImages.length > 0) {
+                const link = document.createElement('a');
+                link.href = generatedImages[0];
+                link.download = 'test-mousepad-generation.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                console.log('🧪 Test image downloaded');
+            }
+        } catch (error) {
+            console.error('🧪 Test image generation failed:', error);
         }
     };
 
@@ -1616,6 +1737,14 @@ export default function AdminPanel() {
                             WixConnected: {wixConnected ? '✅' : '❌'}
                         </div>
                     </div>
+                    <Button
+                        onClick={testImageGeneration}
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                    >
+                        🧪 Test Image Gen
+                    </Button>
                 </div>
 
                 {/* Stats Cards */}
@@ -1707,9 +1836,9 @@ export default function AdminPanel() {
                         </div>
 
                         {/* Orders List */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="space-y-4">
                             {filteredOrders.length === 0 ? (
-                                <div className="col-span-2 text-center py-8">
+                                <div className="text-center py-8">
                                     <div className="text-gray-500">
                                         {orders.length === 0 ? (
                                             <div>
@@ -1730,14 +1859,22 @@ export default function AdminPanel() {
                                         <CardContent className="p-6">
                                             {/* Header */}
                                             <div className="flex items-center justify-between mb-4">
-                                                <div>
-                                                    <h3 className="font-bold text-lg text-gray-900">Order #{order.id}</h3>
-                                                    <p className="text-sm text-gray-500">{format(order.orderDate, 'MMM dd, yyyy HH:mm')}</p>
+                                                <div className="flex items-center gap-4">
+                                                    <div>
+                                                        <h3 className="font-bold text-lg text-gray-900">Order #{order.id}</h3>
+                                                        <p className="text-sm text-gray-500">{format(order.orderDate, 'MMM dd, yyyy HH:mm')}</p>
+                                                    </div>
+                                                    <Badge variant="outline" className={statusColors[order.status]}>
+                                                        {statusIcons[order.status]}
+                                                        {order.status}
+                                                    </Badge>
                                                 </div>
-                                                <Badge variant="outline" className={statusColors[order.status]}>
-                                                    {statusIcons[order.status]}
-                                                    {order.status}
-                                                </Badge>
+                                                <div className="text-right">
+                                                    <p className="text-lg font-bold text-gray-900">${order.total.toFixed(2)}</p>
+                                                    <p className="text-xs text-gray-500">
+                                                        Subtotal: ${order.subtotal.toFixed(2)} | Tax: ${order.tax.toFixed(2)}
+                                                    </p>
+                                                </div>
                                             </div>
 
                                             {/* Customer Info */}
@@ -1749,103 +1886,151 @@ export default function AdminPanel() {
                                                 <p className="text-sm text-gray-700">{order.customerEmail}</p>
                                             </div>
 
-                                            {/* Order Summary */}
-                                            <div className="mb-4">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Package className="h-4 w-4 text-gray-500" />
-                                                    <span className="font-medium text-sm">Order Details</span>
-                                                </div>
-                                                {order.items.map((item, index) => (
-                                                    <div key={index} className="space-y-2 text-sm">
-                                                        <div className="flex justify-between">
-                                                            <span className="font-medium">{item.name}</span>
-                                                            <span className="text-gray-600">Qty: {item.quantity}</span>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                                                            <div>Size: {item.specs.size}</div>
-                                                            <div>Thickness: {item.specs.thickness}</div>
-                                                            <div>Type: {item.specs.type}</div>
-                                                            {item.specs.rgb && (
-                                                                <div>RGB: {item.specs.rgb.mode}</div>
-                                                            )}
-                                                        </div>
-                                                        {item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0 && (
-                                                            <div className="text-xs text-gray-600">
-                                                                Text: {item.specs.text.map(t => t.text).join(', ')}
-                                                            </div>
-                                                        )}
-                                                        {item.specs.overlays && item.specs.overlays.length > 0 && (
-                                                            <div className="text-xs text-gray-600">
-                                                                Overlays: {item.specs.overlays.length} applied
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                            {/* Expand Button */}
+                                            <div className="flex justify-center pt-2">
+                                                <Button
+                                                    onClick={() => toggleExpandedOrder(order.id)}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="text-xs"
+                                                >
+                                                    {expandedOrders.has(order.id) ? 'Hide Details' : 'Show Details'}
+                                                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform duration-200 ${expandedOrders.has(order.id) ? 'rotate-180' : ''}`} />
+                                                </Button>
                                             </div>
 
-                                            {/* Generated Mousepad Preview */}
-                                            <div className="mb-4">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Eye className="h-4 w-4 text-gray-500" />
-                                                    <span className="font-medium text-sm">Custom Design Preview</span>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2 justify-center">
-                                                    {order.previewImages && order.previewImages.length > 0 ? (
-                                                        order.previewImages.map((imageUrl, imageIndex) => (
-                                                            <div key={imageIndex} className="relative">
-                                                                <img
-                                                                    src={imageUrl}
-                                                                    alt={`Mousepad design ${imageIndex + 1} for order ${order.id}`}
-                                                                    className="w-56 h-40 object-contain border border-gray-200 rounded-lg shadow-sm"
-                                                                    onError={(e) => {
-                                                                        console.warn('⚠️ Failed to load preview image for order:', order.id, 'image:', imageIndex);
-                                                                        e.currentTarget.src = '/placeholder.svg';
-                                                                    }}
-                                                                />
-                                                                {order.items.length > 1 && (
-                                                                    <div className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1 py-0.5 rounded">
-                                                                        {imageIndex + 1}
-                                                                    </div>
+                                            {/* Expanded Content */}
+                                            {expandedOrders.has(order.id) && (
+                                                <div className="space-y-6 border-t border-gray-200 pt-4">
+                                                    {/* Order Items with Images */}
+                                                    {order.items.map((item, itemIndex) => (
+                                                        <div key={itemIndex} className="space-y-4">
+                                                            <div className="flex items-center justify-between">
+                                                                <h4 className="font-semibold text-md text-gray-900">
+                                                                    {item.name} - Item {itemIndex + 1}
+                                                                </h4>
+                                                                <div className="text-sm text-gray-600">
+                                                                    Qty: {item.quantity} | ${item.price.toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* Item Details */}
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                                                                <div>Size: {item.specs.size}</div>
+                                                                <div>Thickness: {item.specs.thickness}</div>
+                                                                <div>Type: {item.specs.type}</div>
+                                                                {item.specs.rgb && (
+                                                                    <div>RGB: {item.specs.rgb.mode}</div>
                                                                 )}
                                                             </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="w-56 h-40 border border-gray-200 rounded-lg shadow-sm flex items-center justify-center bg-gray-50">
-                                                            <span className="text-gray-500 text-sm">No preview available</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                                            
+                                                            {item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0 && (
+                                                                <div className="text-sm text-gray-600">
+                                                                    <span className="font-medium">Text:</span> {item.specs.text.map(t => t.text).join(', ')}
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {item.specs.overlays && item.specs.overlays.length > 0 && (
+                                                                <div className="text-sm text-gray-600">
+                                                                    <span className="font-medium">Overlays:</span> {item.specs.overlays.length} applied
+                                                                </div>
+                                                            )}
 
-                                            {/* Price and Actions */}
-                                            <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                                                <div>
-                                                    <p className="text-lg font-bold text-gray-900">${order.total.toFixed(2)}</p>
-                                                    <p className="text-xs text-gray-500">
-                                                        Subtotal: ${order.subtotal.toFixed(2)} | Tax: ${order.tax.toFixed(2)} | Shipping: ${order.shipping.toFixed(2)}
-                                                    </p>
+                                                            {/* Images Section */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                {/* Generated Custom Image */}
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Eye className="h-4 w-4 text-gray-500" />
+                                                                        <span className="font-medium text-sm">Generated Design</span>
+                                                                    </div>
+                                                                    <div className="relative">
+                                                                        {order.previewImages && order.previewImages[itemIndex] ? (
+                                                                            <div className="relative group">
+                                                                                <img
+                                                                                    src={order.previewImages[itemIndex]}
+                                                                                    alt={`Generated mousepad design for item ${itemIndex + 1}`}
+                                                                                    className="w-full h-48 object-contain border border-gray-200 rounded-lg shadow-sm"
+                                                                                    onError={(e) => {
+                                                                                        console.warn('⚠️ Failed to load generated image for order:', order.id, 'item:', itemIndex);
+                                                                                        e.currentTarget.src = '/placeholder.svg';
+                                                                                    }}
+                                                                                />
+                                                                                <Button
+                                                                                    onClick={() => handleDownloadImage(order)}
+                                                                                    size="sm"
+                                                                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                                                                >
+                                                                                    <Download className="h-3 w-3" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="w-full h-48 border border-gray-200 rounded-lg shadow-sm flex items-center justify-center bg-gray-50">
+                                                                                <span className="text-gray-500 text-sm">No generated image available</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Original Uploaded Image */}
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Package className="h-4 w-4 text-gray-500" />
+                                                                        <span className="font-medium text-sm">Original Upload</span>
+                                                                    </div>
+                                                                    <div className="relative">
+                                                                        <div className="relative group">
+                                                                            <img
+                                                                                src={item.image}
+                                                                                alt={`Original uploaded image for item ${itemIndex + 1}`}
+                                                                                className="w-full h-48 object-contain border border-gray-200 rounded-lg shadow-sm"
+                                                                                onError={(e) => {
+                                                                                    console.warn('⚠️ Failed to load original image for order:', order.id, 'item:', itemIndex);
+                                                                                    e.currentTarget.src = '/placeholder.svg';
+                                                                                }}
+                                                                            />
+                                                                            <Button
+                                                                                onClick={() => {
+                                                                                    const link = document.createElement('a');
+                                                                                    link.href = item.image;
+                                                                                    link.download = `original-${order.id}-item-${itemIndex + 1}.png`;
+                                                                                    document.body.appendChild(link);
+                                                                                    link.click();
+                                                                                    document.body.removeChild(link);
+                                                                                }}
+                                                                                size="sm"
+                                                                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                                                            >
+                                                                                <Download className="h-3 w-3" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* Actions */}
+                                                    <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
+                                                        <Button
+                                                            onClick={() => handleUpdateOrder(order)}
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            <Edit className="h-3 w-3 mr-1" />
+                                                            Edit Order
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() => handleDownloadImage(order)}
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            <Download className="h-3 w-3 mr-1" />
+                                                            Download All Images
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        onClick={() => handleUpdateOrder(order)}
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="text-xs"
-                                                    >
-                                                        <Edit className="h-3 w-3 mr-1" />
-                                                        Edit
-                                                    </Button>
-                                                    <Button
-                                                        onClick={() => handleDownloadImage(order)}
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="text-xs"
-                                                    >
-                                                        <Download className="h-3 w-3 mr-1" />
-                                                        Download
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 ))
