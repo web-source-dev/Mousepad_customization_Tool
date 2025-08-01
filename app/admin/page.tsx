@@ -1320,7 +1320,9 @@ export default function AdminPanel() {
                     throw new Error('Canvas context not available');
                 }
 
-                // Set canvas size based on mousepad size - use actual dimensions
+                const size = item.specs.size;
+                
+                // Set canvas size based on mousepad size - parse dimensions correctly
                 const sizeMap: { [key: string]: { width: number; height: number } } = {
                     '400x800': { width: 400, height: 800 },
                     '400x900': { width: 400, height: 900 },
@@ -1331,11 +1333,32 @@ export default function AdminPanel() {
                     '800x800': { width: 800, height: 800 },
                     '900x400': { width: 900, height: 400 },
                     '1000x500': { width: 1000, height: 500 },
-                    '1000x400': { width: 1000, height: 400 }
+                    '1000x400': { width: 1000, height: 400 },
+                    '350x600': { width: 600, height: 350 },
+                    '600x350': { width: 600, height: 350 }
                 };
 
-                const size = item.specs.size;
-                const dimensions = sizeMap[size] || { width: 400, height: 800 };
+                // Parse size dynamically if not in map
+                let dimensions;
+                if (sizeMap[size]) {
+                    dimensions = sizeMap[size];
+                } else {
+                    // Parse size like "350x600" to get width and height
+                    // Format: "height x width" -> width = second number, height = first number
+                    const sizeParts = size.split('x');
+                    if (sizeParts.length === 2) {
+                        const height = parseInt(sizeParts[0]); // First number is height
+                        const width = parseInt(sizeParts[1]);  // Second number is width
+                        if (!isNaN(width) && !isNaN(height)) {
+                            dimensions = { width, height };
+                        }
+                    }
+                }
+                
+                // Fallback if parsing fails
+                if (!dimensions) {
+                    dimensions = { width: 400, height: 800 };
+                }
                 console.log('📏 Canvas dimensions:', dimensions);
 
                 canvas.width = dimensions.width;
@@ -1363,17 +1386,8 @@ export default function AdminPanel() {
                         ctx.fillStyle = borderGradient;
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         
-                        // Create inner background (slightly smaller to show border)
-                        const innerGradient = ctx.createLinearGradient(borderWidth, borderWidth, canvas.width - borderWidth, canvas.height - borderWidth);
-                        innerGradient.addColorStop(0, '#ff0000');
-                        innerGradient.addColorStop(0.17, '#ff8000');
-                        innerGradient.addColorStop(0.33, '#ffff00');
-                        innerGradient.addColorStop(0.5, '#00ff00');
-                        innerGradient.addColorStop(0.67, '#0080ff');
-                        innerGradient.addColorStop(0.83, '#8000ff');
-                        innerGradient.addColorStop(1, '#ff0080');
-                        
-                        ctx.fillStyle = innerGradient;
+                        // Create white inner background (slightly smaller to show border)
+                        ctx.fillStyle = '#ffffff';
                         ctx.fillRect(borderWidth, borderWidth, canvas.width - (borderWidth * 2), canvas.height - (borderWidth * 2));
                     } else {
                         // Single color RGB
@@ -1383,8 +1397,8 @@ export default function AdminPanel() {
                         ctx.fillStyle = color;
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         
-                        // Create inner background
-                        ctx.fillStyle = color;
+                        // Create white inner background
+                        ctx.fillStyle = '#ffffff';
                         ctx.fillRect(borderWidth, borderWidth, canvas.width - (borderWidth * 2), canvas.height - (borderWidth * 2));
                     }
                 } else {
@@ -1465,20 +1479,27 @@ export default function AdminPanel() {
                                     reject(error);
                                 };
                                 
-                                // Handle base64 data properly
-                                if (overlayData.startsWith('data:image/')) {
-                                    img.src = overlayData;
+                                // Handle base64 data properly - try multiple formats
+                                let imageSrc = overlayData;
+                                
+                                if (!overlayData.startsWith('data:')) {
+                                    // If it's raw base64, add the data URL prefix
+                                    imageSrc = `data:image/png;base64,${overlayData}`;
                                 } else if (overlayData.startsWith('data:image/png;base64,')) {
-                                    img.src = overlayData;
-                                } else {
-                                    // Try to convert to proper base64 format
-                                    img.src = `data:image/png;base64,${overlayData}`;
+                                    // Already properly formatted
+                                    imageSrc = overlayData;
+                                } else if (overlayData.startsWith('data:image/')) {
+                                    // Other image format, try to convert
+                                    imageSrc = overlayData;
                                 }
+                                
+                                console.log(`🖼️ Setting image src for overlay ${overlayIndex + 1}:`, imageSrc.substring(0, 50) + '...');
+                                img.src = imageSrc;
                             });
 
                             // Draw overlay in center with proper scaling
-                            const maxOverlayWidth = canvas.width * 0.6; // 60% of canvas width
-                            const maxOverlayHeight = canvas.height * 0.6; // 60% of canvas height
+                            const maxOverlayWidth = canvas.width * 0.7; // 70% of canvas width
+                            const maxOverlayHeight = canvas.height * 0.7; // 70% of canvas height
                             
                             let overlayWidth = img.width;
                             let overlayHeight = img.height;
@@ -1587,7 +1608,7 @@ export default function AdminPanel() {
                     name: 'Test Mousepad',
                     image: '/placeholder.svg',
                     specs: {
-                        size: '400x900', // Match the size from your screenshot
+                        size: '350x600', // Match the size from your screenshot
                         thickness: '5mm',
                         type: 'rgb',
                         rgb: {
