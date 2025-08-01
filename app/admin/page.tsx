@@ -242,17 +242,12 @@ export default function AdminPanel() {
     const [errorMessage, setErrorMessage] = useState('');
 
     const [orders, setOrders] = useState<Order[]>([]);
-    const [users, setUsers] = useState<User[]>([]);
     const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
-    const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [userSearchTerm, setUserSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
-    const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
     const [updateForm, setUpdateForm] = useState({
         status: ''
     });
@@ -262,7 +257,6 @@ export default function AdminPanel() {
     const [wixUserData, setWixUserData] = useState<any>(null);
     const [dataLoaded, setDataLoaded] = useState(false);
     const [ordersLoaded, setOrdersLoaded] = useState(false);
-    const [usersLoaded, setUsersLoaded] = useState(false);
     const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -362,23 +356,22 @@ export default function AdminPanel() {
                 console.log('🔗 Wix connected, requesting real data...');
                 // Reset loading states to allow real data to override mock data
                 setOrdersLoaded(false);
-                setUsersLoaded(false);
                 setDataLoaded(false);
                 
-                // Request orders and users from Wix
+                // Request orders from Wix
                 requestDataFromWix();
 
                 // Set a timeout to handle Wix not responding
                 timeoutRef.current = setTimeout(() => {
                     // Only fall back to mock data if we haven't received real data yet
-                    if (!ordersLoaded || !usersLoaded) {
+                    if (!ordersLoaded) {
                         console.warn('⏰ Wix data request timeout, falling back to mock data...');
-                        console.log('📊 Current state at timeout:', { ordersLoaded, usersLoaded, dataLoaded });
+                        console.log('📊 Current state at timeout:', { ordersLoaded, dataLoaded });
                         setLoading(false);
                         loadData(true); // Load mock data as fallback
                     } else {
                         console.log('⏰ Timeout occurred but real data already loaded, skipping fallback');
-                        console.log('📊 Current state at timeout:', { ordersLoaded, usersLoaded, dataLoaded });
+                        console.log('📊 Current state at timeout:', { ordersLoaded, dataLoaded });
                         setLoading(false);
                     }
                 }, 5000); // 5 second timeout
@@ -490,10 +483,7 @@ export default function AdminPanel() {
                     console.log('📋 Fetch orders response:', data);
                     handleFetchOrdersResponse(data);
                     break;
-                case 'FETCH_USERS_RESPONSE':
-                    console.log('👥 Fetch users response:', data);
-                    handleFetchUsersResponse(data);
-                    break;
+
                 case 'INIT':
                     console.log('🚀 Wix init:', data);
                     handleWixInit(data);
@@ -844,20 +834,16 @@ export default function AdminPanel() {
                 // Generate images for all orders
                 generateImagesForOrders(transformedOrders);
 
-                // Check if both orders and users are loaded
-                if (usersLoaded) {
-                    setDataLoaded(true);
-                    setLoading(false);
-                    console.log('🎉 All data loaded successfully!');
+                // Set data as loaded since we only have orders now
+                setDataLoaded(true);
+                setLoading(false);
+                console.log('🎉 Orders data loaded successfully!');
 
-                    // Clear timeout since all data was successfully loaded
-                    if (timeoutRef.current) {
-                        clearTimeout(timeoutRef.current);
-                        timeoutRef.current = null;
-                        console.log('⏰ Cleared timeout - all data loaded successfully');
-                    }
-                } else {
-                    console.log('📋 Orders loaded, waiting for users...');
+                // Clear timeout since data was successfully loaded
+                if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current);
+                    timeoutRef.current = null;
+                    console.log('⏰ Cleared timeout - orders data loaded successfully');
                 }
             } else {
                 console.warn('⚠️ No orders data received from Wix or invalid format');
@@ -867,62 +853,7 @@ export default function AdminPanel() {
         }
     };
 
-    // Handle fetch users response from Wix
-    const handleFetchUsersResponse = (data: any) => {
-        try {
-            console.log('👥 Fetch users response from Wix:', data);
 
-            if (data.users && Array.isArray(data.users)) {
-                console.log('🔄 Transforming users data...');
-                // Transform Wix users to match our interface
-                const transformedUsers: User[] = data.users.map((wixUser: any) => {
-                    try {
-                        console.log('👤 Processing user:', wixUser.id, wixUser.email);
-
-                        // Ensure all data is serializable
-                        return {
-                            id: String(wixUser.id || ''),
-                            email: String(wixUser.email || ''),
-                            totalOrders: 0, // Default value since not in Wix data
-                            totalSpent: 0, // Default value since not in Wix data
-                            lastOrderDate: new Date(wixUser.lastLoginDate || wixUser.createdDate || Date.now()),
-                            joinDate: new Date(wixUser.createdDate || Date.now()),
-                            status: wixUser.isActive !== false ? 'active' : 'inactive'
-                        };
-                    } catch (userError) {
-                        console.error('❌ Error processing user:', userError);
-                        return null;
-                    }
-                }).filter(Boolean) as User[];
-
-                console.log('✅ Transformed users:', transformedUsers.length);
-                console.log('🎯 Setting real users data from Wix:', transformedUsers.length, 'users');
-                setUsers(transformedUsers);
-                setFilteredUsers(transformedUsers);
-                setUsersLoaded(true);
-
-                // Check if both orders and users are loaded
-                if (ordersLoaded) {
-                    setDataLoaded(true);
-                    setLoading(false);
-                    console.log('🎉 All data loaded successfully!');
-
-                    // Clear timeout since all data was successfully loaded
-                    if (timeoutRef.current) {
-                        clearTimeout(timeoutRef.current);
-                        timeoutRef.current = null;
-                        console.log('⏰ Cleared timeout - all data loaded successfully');
-                    }
-                } else {
-                    console.log('👥 Users loaded, waiting for orders...');
-                }
-            } else {
-                console.warn('⚠️ No users data received from Wix or invalid format');
-            }
-        } catch (error) {
-            console.error('❌ Error handling fetch users response:', error);
-        }
-    };
 
     // Request data from Wix
     const requestDataFromWix = () => {
@@ -935,13 +866,6 @@ export default function AdminPanel() {
                     type: 'FETCH_ORDERS',
                     data: {},
                     id: Date.now().toString()
-                });
-
-                // Request users
-                sendMessageToWix({
-                    type: 'FETCH_USERS',
-                    data: {},
-                    id: (Date.now() + 1).toString()
                 });
             } else {
                 console.warn('⚠️ Wix not connected, cannot request data');
@@ -1009,52 +933,12 @@ export default function AdminPanel() {
         }
     };
 
-    // Enhanced user view with Wix integration
-    const handleViewUser = (user: User) => {
-        try {
-            console.log('👁️ Viewing user details:', user.id, user.email);
-            setSelectedUser(user);
-            setIsUserDialogOpen(true);
 
-            // Send user view action to Wix with clean data
-            console.log('📤 Sending user view action to Wix...');
-            sendMessageToWix({
-                type: 'ADMIN_ACTION',
-                data: {
-                    action: 'VIEW_USER',
-                    userId: String(user.id)
-                },
-                id: Date.now().toString()
-            });
-        } catch (error) {
-            console.error('❌ Error viewing user:', error);
-        }
-    };
-
-    // Send email to user via Wix
-    const handleSendEmail = (user: User) => {
-        try {
-            console.log('📧 Sending email to user:', user.id, user.email);
-            sendMessageToWix({
-                type: 'ADMIN_ACTION',
-                data: {
-                    action: 'SEND_EMAIL',
-                    userId: String(user.id),
-                    userEmail: String(user.email),
-                    userName: String(user.email)
-                },
-                id: Date.now().toString()
-            });
-        } catch (error) {
-            console.error('❌ Error sending email:', error);
-        }
-    };
 
     const reloadData = () => {
         console.log('🔄 Reloading data...');
         setDataLoaded(false);
         setOrdersLoaded(false);
-        setUsersLoaded(false);
         setLoading(true);
 
         // Reset timeout and try again
@@ -1103,11 +987,6 @@ export default function AdminPanel() {
                         setOrdersLoaded(true);
 
                         // Generate mock users
-                        console.log('👥 Loading mock users...');
-                        const mockUsers = generateMockUsers();
-                        setUsers(mockUsers);
-                        setFilteredUsers(mockUsers);
-                        setUsersLoaded(true);
                         setDataLoaded(true);
                         return; // Exit early if API call succeeded
                     } else {
@@ -1120,7 +999,7 @@ export default function AdminPanel() {
                 }
             } else {
                 // Fallback to mock data - only if we haven't already received real data
-                if (ordersLoaded && usersLoaded) {
+                if (ordersLoaded) {
                     console.log('🔄 Skipping mock data load - real data already loaded');
                     setLoading(false);
                     return;
@@ -1129,15 +1008,11 @@ export default function AdminPanel() {
                 console.log('🔄 Loading mock data...');
                 console.log('⚠️ WARNING: Loading mock data - this should not happen if real data was received');
                 const mockOrders = generateMockOrders();
-                const mockUsers = generateMockUsers();
                 setOrders(mockOrders);
                 setFilteredOrders(mockOrders);
-                setUsers(mockUsers);
-                setFilteredUsers(mockUsers);
 
                 // Set loading states for mock data
                 setOrdersLoaded(true);
-                setUsersLoaded(true);
                 setDataLoaded(true);
 
                 // Generate images for mock orders
@@ -1146,16 +1021,12 @@ export default function AdminPanel() {
         } catch (error) {
             console.error('❌ Error loading data:', error);
             // Load mock data as fallback on any error - only if we haven't already received real data
-            if (!ordersLoaded || !usersLoaded) {
+            if (!ordersLoaded) {
                 console.log('⚠️ WARNING: Loading mock data due to error - this should not happen if real data was received');
                 const mockOrders = generateMockOrders();
-                const mockUsers = generateMockUsers();
                 setOrders(mockOrders);
                 setFilteredOrders(mockOrders);
-                setUsers(mockUsers);
-                setFilteredUsers(mockUsers);
                 setOrdersLoaded(true);
-                setUsersLoaded(true);
                 setDataLoaded(true);
 
                 // Generate images for mock orders (error fallback)
@@ -1174,22 +1045,20 @@ export default function AdminPanel() {
         console.log('📊 Orders state updated:', {
             ordersCount: orders.length,
             ordersLoaded,
-            usersLoaded,
             dataLoaded,
             loading
         });
-    }, [orders, ordersLoaded, usersLoaded, dataLoaded, loading]);
+    }, [orders, ordersLoaded, dataLoaded, loading]);
 
     // Monitor Wix connection state
     useEffect(() => {
         console.log('🔗 Wix connection state changed:', {
             wixConnected,
             ordersLoaded,
-            usersLoaded,
             dataLoaded,
             loading
         });
-    }, [wixConnected, ordersLoaded, usersLoaded, dataLoaded, loading]);
+    }, [wixConnected, ordersLoaded, dataLoaded, loading]);
 
     // Ensure filteredOrders is set when orders are loaded and no filtering is applied
     useEffect(() => {
@@ -1238,25 +1107,25 @@ export default function AdminPanel() {
         }
     }, [orders, searchTerm, statusFilter, ordersLoaded, loading]);
 
-    // Ensure dataLoaded is set when both orders and users are loaded
+    // Ensure dataLoaded is set when orders are loaded
     useEffect(() => {
         try {
-            if (ordersLoaded && usersLoaded && !dataLoaded) {
-                console.log('🎉 Both orders and users loaded, setting dataLoaded to true');
+            if (ordersLoaded && !dataLoaded) {
+                console.log('🎉 Orders loaded, setting dataLoaded to true');
                 setDataLoaded(true);
                 setLoading(false);
 
-                // Clear timeout since all data was successfully loaded
+                // Clear timeout since data was successfully loaded
                 if (timeoutRef.current) {
                     clearTimeout(timeoutRef.current);
                     timeoutRef.current = null;
-                    console.log('⏰ Cleared timeout - all data loaded successfully');
+                    console.log('⏰ Cleared timeout - data loaded successfully');
                 }
             }
         } catch (error) {
             console.error('❌ Error in dataLoaded effect:', error);
         }
-    }, [ordersLoaded, usersLoaded, dataLoaded]);
+    }, [ordersLoaded, dataLoaded]);
 
     // Ensure filteredOrders is set when orders are loaded and no filters are applied
     useEffect(() => {
@@ -1275,32 +1144,11 @@ export default function AdminPanel() {
         console.log('📊 Orders state changed:', {
             ordersCount: orders.length,
             ordersLoaded,
-            usersLoaded,
             dataLoaded,
             loading,
             filteredOrdersCount: filteredOrders.length
         });
-    }, [orders, ordersLoaded, usersLoaded, dataLoaded, loading, filteredOrders]);
-
-    useEffect(() => {
-        try {
-            console.log('🔍 Filtering users...', { userSearchTerm, usersCount: users.length });
-            let filtered = users;
-
-            // Apply user search filter
-            if (userSearchTerm) {
-                filtered = filtered.filter(user =>
-                    user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                    user.id.toLowerCase().includes(userSearchTerm.toLowerCase())
-                );
-            }
-
-            console.log('✅ Users filtered:', filtered.length);
-            setFilteredUsers(filtered);
-        } catch (error) {
-            console.error('❌ Error filtering users:', error);
-        }
-    }, [users, userSearchTerm]);
+    }, [orders, ordersLoaded, dataLoaded, loading, filteredOrders]);
 
     const generateMousepadImage = async (order: Order): Promise<string[]> => {
         try {
@@ -1312,7 +1160,6 @@ export default function AdminPanel() {
             for (let itemIndex = 0; itemIndex < order.items.length; itemIndex++) {
                 const item = order.items[itemIndex];
                 console.log(`📦 Generating image for item ${itemIndex + 1}/${order.items.length}:`, item.id);
-                console.log('📋 Item specs:', JSON.stringify(item.specs, null, 2));
 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -1323,19 +1170,20 @@ export default function AdminPanel() {
                 const size = item.specs.size;
                 
                 // Set canvas size based on mousepad size - parse dimensions correctly
+                // Rule: Bigger number is always the horizontal width
                 const sizeMap: { [key: string]: { width: number; height: number } } = {
-                    '400x800': { width: 400, height: 800 },
-                    '400x900': { width: 400, height: 900 },
-                    '500x800': { width: 500, height: 800 },
-                    '500x1000': { width: 500, height: 1000 },
-                    '600x800': { width: 600, height: 800 },
-                    '600x1000': { width: 600, height: 1000 },
-                    '800x800': { width: 800, height: 800 },
-                    '900x400': { width: 900, height: 400 },
-                    '1000x500': { width: 1000, height: 500 },
-                    '1000x400': { width: 1000, height: 400 },
-                    '350x600': { width: 600, height: 350 },
-                    '600x350': { width: 600, height: 350 }
+                    '400x800': { width: 800, height: 400 }, // 800 is bigger, so it's width
+                    '400x900': { width: 900, height: 400 }, // 900 is bigger, so it's width
+                    '500x800': { width: 800, height: 500 }, // 800 is bigger, so it's width
+                    '500x1000': { width: 1000, height: 500 }, // 1000 is bigger, so it's width
+                    '600x800': { width: 800, height: 600 }, // 800 is bigger, so it's width
+                    '600x1000': { width: 1000, height: 600 }, // 1000 is bigger, so it's width
+                    '800x800': { width: 800, height: 800 }, // Equal, keep as is
+                    '900x400': { width: 900, height: 400 }, // 900 is bigger, so it's width
+                    '1000x500': { width: 1000, height: 500 }, // 1000 is bigger, so it's width
+                    '1000x400': { width: 1000, height: 400 }, // 1000 is bigger, so it's width
+                    '350x600': { width: 600, height: 350 }, // 600 is bigger, so it's width
+                    '600x350': { width: 600, height: 350 }  // 600 is bigger, so it's width
                 };
 
                 // Parse size dynamically if not in map
@@ -1343,14 +1191,18 @@ export default function AdminPanel() {
                 if (sizeMap[size]) {
                     dimensions = sizeMap[size];
                 } else {
-                    // Parse size like "350x600" to get width and height
-                    // Format: "height x width" -> width = second number, height = first number
+                    // Parse size like "350x600" - bigger number becomes width
                     const sizeParts = size.split('x');
                     if (sizeParts.length === 2) {
-                        const height = parseInt(sizeParts[0]); // First number is height
-                        const width = parseInt(sizeParts[1]);  // Second number is width
-                        if (!isNaN(width) && !isNaN(height)) {
-                            dimensions = { width, height };
+                        const num1 = parseInt(sizeParts[0]);
+                        const num2 = parseInt(sizeParts[1]);
+                        if (!isNaN(num1) && !isNaN(num2)) {
+                            // Bigger number is always the horizontal width
+                            if (num1 >= num2) {
+                                dimensions = { width: num1, height: num2 };
+                            } else {
+                                dimensions = { width: num2, height: num1 };
+                            }
                         }
                     }
                 }
@@ -1359,14 +1211,13 @@ export default function AdminPanel() {
                 if (!dimensions) {
                     dimensions = { width: 400, height: 800 };
                 }
-                console.log('📏 Canvas dimensions:', dimensions);
+
 
                 canvas.width = dimensions.width;
                 canvas.height = dimensions.height;
 
                 // Fill background based on type
                 if (item.specs.type === 'rgb') {
-                    console.log('🎨 Creating RGB background with specs:', item.specs.rgb);
                     
                     // Create RGB border effect - draw a thicker border with RGB colors
                     const borderWidth = 20; // RGB border thickness
@@ -1409,10 +1260,8 @@ export default function AdminPanel() {
 
                 // Draw text elements
                 if (item.specs.text && Array.isArray(item.specs.text) && item.specs.text.length > 0) {
-                    console.log('📝 Drawing text elements:', item.specs.text.length);
                     item.specs.text.forEach((textElement, textIndex) => {
                         try {
-                            console.log(`📝 Drawing text ${textIndex + 1}:`, textElement);
                             
                             // Calculate position based on percentage
                             const x = (textElement.position.x / 100) * canvas.width;
@@ -1449,29 +1298,23 @@ export default function AdminPanel() {
                             ctx.fillText(textElement.text, 0, 0);
 
                             ctx.restore();
-                            console.log(`✅ Text ${textIndex + 1} drawn successfully`);
                         } catch (error) {
                             console.warn('⚠️ Error drawing text element:', error);
                         }
                     });
-                } else {
-                    console.log('📝 No text elements to draw');
                 }
 
                 // Draw overlays if available - handle base64 properly
                 if (item.specs.overlays && item.specs.overlays.length > 0) {
-                    console.log('🖼️ Drawing overlays:', item.specs.overlays.length);
                     for (let overlayIndex = 0; overlayIndex < item.specs.overlays.length; overlayIndex++) {
                         const overlayData = item.specs.overlays[overlayIndex];
                         try {
-                            console.log(`🖼️ Loading overlay ${overlayIndex + 1}:`, overlayData.substring(0, 100) + '...');
                             
                             const img = new Image();
                             img.crossOrigin = 'anonymous';
 
                             await new Promise((resolve, reject) => {
                                 img.onload = () => {
-                                    console.log(`✅ Overlay ${overlayIndex + 1} loaded successfully, size:`, img.width, 'x', img.height);
                                     resolve(null);
                                 };
                                 img.onerror = (error) => {
@@ -1493,7 +1336,6 @@ export default function AdminPanel() {
                                     imageSrc = overlayData;
                                 }
                                 
-                                console.log(`🖼️ Setting image src for overlay ${overlayIndex + 1}:`, imageSrc.substring(0, 50) + '...');
                                 img.src = imageSrc;
                             });
 
@@ -1515,18 +1357,14 @@ export default function AdminPanel() {
                             const overlayY = (canvas.height - overlayHeight) / 2;
 
                             ctx.drawImage(img, overlayX, overlayY, overlayWidth, overlayHeight);
-                            console.log(`✅ Overlay ${overlayIndex + 1} drawn successfully at:`, overlayX, overlayY, overlayWidth, overlayHeight);
                         } catch (error) {
                             console.warn('⚠️ Failed to load overlay:', error);
                         }
                     }
-                } else {
-                    console.log('🖼️ No overlays to draw');
                 }
 
                 const imageDataUrl = canvas.toDataURL('image/png', 1.0);
                 generatedImages.push(imageDataUrl);
-                console.log(`✅ Generated image ${itemIndex + 1} for order ${order.id}`);
             }
 
             console.log(`✅ Generated ${generatedImages.length} images for order ${order.id}`);
@@ -1715,22 +1553,7 @@ export default function AdminPanel() {
         }
     };
 
-    const getUserStats = () => {
-        try {
-            const total = users.length;
-            const active = users.filter(u => u.status === 'active').length;
-            const inactive = users.filter(u => u.status === 'inactive').length;
-            const totalRevenue = users.reduce((sum, user) => sum + user.totalSpent, 0);
-
-            return { total, active, inactive, totalRevenue };
-        } catch (error) {
-            console.error('❌ Error calculating user stats:', error);
-            return { total: 0, active: 0, inactive: 0, totalRevenue: 0 };
-        }
-    };
-
     const stats = getOrderStats();
-    const userStats = getUserStats();
 
     // Error boundary UI
     if (hasError) {
@@ -1809,9 +1632,8 @@ export default function AdminPanel() {
                         <p className="text-gray-600 mt-2">Manage orders and customers</p>
                         {/* Debug info */}
                         <div className="text-xs text-gray-500 mt-1">
-                            Debug: Orders: {orders.length} | FilteredOrders: {filteredOrders.length} | Users: {users.length} |
+                            Debug: Orders: {orders.length} | FilteredOrders: {filteredOrders.length} |
                             OrdersLoaded: {ordersLoaded ? '✅' : '❌'} |
-                            UsersLoaded: {usersLoaded ? '✅' : '❌'} |
                             DataLoaded: {dataLoaded ? '✅' : '❌'} |
                             Loading: {loading ? '✅' : '❌'} |
                             WixConnected: {wixConnected ? '✅' : '❌'}
@@ -1851,17 +1673,7 @@ export default function AdminPanel() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <Users className="h-8 w-8 text-purple-600" />
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-600">Total Users</p>
-                                    <p className="text-2xl font-bold text-gray-900">{userStats.total}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+
                     <Card>
                         <CardContent className="p-6">
                             <div className="flex items-center">
@@ -1875,21 +1687,10 @@ export default function AdminPanel() {
                     </Card>
                 </div>
 
-                {/* Tabs */}
-                <Tabs defaultValue="orders" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="orders" className="flex items-center gap-2">
-                            <Package className="h-4 w-4" />
-                            Orders Management
-                        </TabsTrigger>
-                        <TabsTrigger value="users" className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
-                            User Management
-                        </TabsTrigger>
-                    </TabsList>
+                {/* Orders Management */}
+                <div className="space-y-6">
 
-                    {/* Orders Tab */}
-                    <TabsContent value="orders" className="space-y-6">
+
                         {/* Filters */}
                         <div className="flex flex-col sm:flex-row gap-4">
                             <div className="flex-1">
@@ -2129,85 +1930,7 @@ export default function AdminPanel() {
                                 ))
                             )}
                         </div>
-                    </TabsContent>
-
-                    {/* Users Tab */}
-                    <TabsContent value="users" className="space-y-6">
-                        {/* User Stats */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Card>
-                                <CardContent className="p-6">
-                                    <div className="flex items-center">
-                                        <Users className="h-8 w-8 text-blue-600" />
-                                        <div className="ml-4">
-                                            <p className="text-sm font-medium text-gray-600">Total Users</p>
-                                            <p className="text-2xl font-bold text-gray-900">{userStats.total}</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                <CardContent className="p-6">
-                                    <div className="flex items-center">
-                                        <DollarSign className="h-8 w-8 text-purple-600" />
-                                        <div className="ml-4">
-                                            <p className="text-sm font-medium text-gray-600">Total Spent</p>
-                                            <p className="text-2xl font-bold text-gray-900">${userStats.totalRevenue.toFixed(2)}</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* User Filters */}
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            <div className="flex-1">
-                                <Input
-                                    placeholder="Search users..."
-                                    value={userSearchTerm}
-                                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                                    className="max-w-sm"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Users List */}
-                        <div className="space-y-4">
-                            {filteredUsers.map((user) => (
-                                <Card key={user.id}>
-                                    <CardContent className="p-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* User Info */}
-                                            <div className="space-y-2">
-                                                <h3 className="font-semibold text-lg">
-                                                    {user.email}
-                                                </h3>
-                                                <p className="text-sm text-gray-500">
-                                                    Joined: {format(user.joinDate, 'MMM dd, yyyy')}
-                                                </p>
-                                                <p className="text-sm text-gray-500">
-                                                    Orders: {user.totalOrders} | Spent: ${user.totalSpent.toFixed(2)}
-                                                </p>
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="flex flex-col gap-2">
-                                                <Button
-                                                    onClick={() => handleViewUser(user)}
-                                                    size="sm"
-                                                    variant="outline"
-                                                >
-                                                    <Eye className="h-4 w-4 mr-2" />
-                                                    View Details
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    </TabsContent>
-                </Tabs>
+                </div>
 
                 {/* Update Order Dialog */}
                 <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
@@ -2250,48 +1973,7 @@ export default function AdminPanel() {
                     </DialogContent>
                 </Dialog>
 
-                {/* User Details Dialog */}
-                <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>User Details</DialogTitle>
-                        </DialogHeader>
-                        {selectedUser && (
-                            <div className="space-y-4">
-                                <div>
-                                    <Label>Email</Label>
-                                    <p className="text-sm text-gray-600">{selectedUser.email}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label>Total Orders</Label>
-                                        <p className="text-sm text-gray-600">{selectedUser.totalOrders}</p>
-                                    </div>
-                                    <div>
-                                        <Label>Total Spent</Label>
-                                        <p className="text-sm text-gray-600">${selectedUser.totalSpent.toFixed(2)}</p>
-                                    </div>
-                                    <div>
-                                        <Label>Join Date</Label>
-                                        <p className="text-sm text-gray-600">{format(selectedUser.joinDate, 'MMM dd, yyyy')}</p>
-                                    </div>
-                                    <div>
-                                        <Label>Last Order</Label>
-                                        <p className="text-sm text-gray-600">{format(selectedUser.lastOrderDate, 'MMM dd, yyyy')}</p>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setIsUserDialogOpen(false)}
-                                    >
-                                        Close
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                    </DialogContent>
-                </Dialog>
+
 
                 {/* Toast Notifications */}
                 <Toaster />

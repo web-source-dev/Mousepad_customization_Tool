@@ -16,32 +16,29 @@ $w.onReady(function () {
         try {
             console.log('🔄 Processing message type:', type, 'with id:', id);
             switch (type) {
-                case 'IFRAME_READY':
-                    handleIframeReady();
-                    break;
-                case 'USER_DATA_REQUEST':
-                    await handleUserDataRequest(id);
-                    break;
-                case 'ORDER_CREATED':
-                    await handleOrderCreated(data, id);
-                    break;
-                case 'CHECKOUT_DATA':
-                    await handleCheckoutData(data, id);
-                    break;
-                case 'ADMIN_ACTION':
-                    await handleAdminAction(data, id);
-                    break;
-                case 'UPDATE_ORDER_STATUS':
-                    await handleUpdateOrderStatus(data, id);
-                    break;
-                case 'FETCH_ORDERS':
-                    await handleFetchOrders(id);
-                    break;
-                case 'FETCH_USERS':
-                    await handleFetchUsers(id);
-                    break;
-                default:
-                    sendErrorToIframe("Unknown message type", id);
+            case 'IFRAME_READY':
+                handleIframeReady();
+                break;
+            case 'USER_DATA_REQUEST':
+                await handleUserDataRequest(id);
+                break;
+            case 'ORDER_CREATED':
+                await handleOrderCreated(data, id);
+                break;
+            case 'CHECKOUT_DATA':
+                await handleCheckoutData(data, id);
+                break;
+            case 'ADMIN_ACTION':
+                await handleAdminAction(data, id);
+                break;
+            case 'UPDATE_ORDER_STATUS':
+                await handleUpdateOrderStatus(data, id);
+                break;
+            case 'FETCH_ORDERS':
+                await handleFetchOrders(id);
+                break;
+            default:
+                sendErrorToIframe("Unknown message type", id);
             }
         } catch (error) {
             sendErrorToIframe(error.message, id);
@@ -146,7 +143,7 @@ async function handleFetchOrders(messageId) {
         console.log('📋 Wix: Fetching orders from database...');
         const orders = await wixData.query("Orders").ascending("createdAt").find();
         console.log('📊 Wix: Found', orders.items.length, 'orders in database');
-        
+
         const transformedOrders = orders.items.map(order => ({
             id: order._id,
             orderId: order._id,
@@ -173,47 +170,15 @@ async function handleFetchOrders(messageId) {
     }
 }
 
-async function handleFetchUsers(messageId) {
-    try {
-        console.log('👥 Wix: Fetching users from database...');
-        const users = await wixData.query("Members/PrivateMembersData").ascending("_createdDate").find();
-        console.log('📊 Wix: Found', users.items.length, 'users in database');
-        
-        const transformedUsers = users.items.map(user => ({
-            id: user._id,
-            email: user.email,
-            createdDate: user._createdDate,
-            lastLoginDate: user.lastLoginDate || user._createdDate,
-            isActive: user.isActive !== false
-        }));
-
-        console.log('✅ Wix: Sending', transformedUsers.length, 'users to iframe');
-        sendMessageToIframe({
-            type: 'FETCH_USERS_RESPONSE',
-            data: { users: transformedUsers },
-            id: messageId
-        });
-    } catch (error) {
-        console.error('❌ Wix: Error fetching users:', error);
-        sendErrorToIframe("Failed to fetch users", messageId);
-    }
-}
-
 async function handleAdminAction(actionData, messageId) {
     const { action, data } = actionData;
     try {
         switch (action) {
-            case 'UPDATE_ORDER':
-                await handleUpdateOrder(data, messageId);
-                break;
-            case 'VIEW_USER':
-                await handleViewUser(data, messageId);
-                break;
-            case 'SEND_EMAIL':
-                await handleSendEmail(data, messageId);
-                break;
-            default:
-                sendErrorToIframe("Unknown admin action", messageId);
+        case 'UPDATE_ORDER':
+            await handleUpdateOrder(data, messageId);
+            break;
+        default:
+            sendErrorToIframe("Unknown admin action", messageId);
         }
     } catch {
         sendErrorToIframe("Failed to handle admin action", messageId);
@@ -223,7 +188,15 @@ async function handleAdminAction(actionData, messageId) {
 async function handleUpdateOrder(orderData, messageId) {
     try {
         const { orderId, status } = orderData;
-        const updatedOrder = await wixData.update("Orders", orderId, {
+
+        if (!orderId || !status) {
+            console.error('❌ Missing orderId or status');
+            sendErrorToIframe("Missing orderId or status", messageId);
+            return;
+        }
+
+        const updatedOrder = await wixData.update("Orders", {
+            _id: orderId,
             status,
             _updatedDate: new Date()
         });
@@ -233,65 +206,51 @@ async function handleUpdateOrder(orderData, messageId) {
             data: { action: 'UPDATE_ORDER', success: true, orderId },
             id: messageId
         });
-    } catch {
-        sendErrorToIframe("Failed to update order", messageId);
+
+        console.log('✅ Order updated via handleUpdateOrder:', updatedOrder);
+
+    } catch (error) {
+        console.error('❌ Error in handleUpdateOrder:', error);
+        sendErrorToIframe("Failed to update order: " + error.message, messageId);
     }
 }
 
 async function handleUpdateOrderStatus(orderData, messageId) {
     try {
         console.log('🔄 Processing order status update:', orderData);
-        
-        // Deep log the payload to check for missing keys
-        console.log('📊 Update payload details:', {
-            orderId: orderData.orderId,
-            newStatus: orderData.newStatus,
-            timestamp: orderData.timestamp
-        });
 
-        if (!orderData.orderId || !orderData.newStatus) {
-            console.error('❌ Missing required fields in update payload:', orderData);
+        const { orderId, newStatus } = orderData;
+
+        if (!orderId || !newStatus) {
+            console.error('❌ Missing required fields:', orderData);
             sendErrorToIframe("Missing orderId or newStatus", messageId);
             return;
         }
 
-        // Validate status values
         const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-        if (!validStatuses.includes(orderData.newStatus)) {
-            console.error('❌ Invalid status value:', orderData.newStatus);
+        if (!validStatuses.includes(newStatus)) {
+            console.error('❌ Invalid status:', newStatus);
             sendErrorToIframe("Invalid status value. Must be one of: " + validStatuses.join(', '), messageId);
             return;
         }
 
-        // Check if order exists before updating
-        try {
-            const existingOrder = await wixData.get("Orders", orderData.orderId);
-            if (!existingOrder) {
-                console.error('❌ Order not found:', orderData.orderId);
-                sendErrorToIframe("Order not found: " + orderData.orderId, messageId);
-                return;
-            }
-            console.log('✅ Order found, current status:', existingOrder.status);
-        } catch (getError) {
-            console.error('❌ Error checking if order exists:', getError);
-            sendErrorToIframe("Error checking order existence: " + getError.message, messageId);
+        const existingOrder = await wixData.get("Orders", orderId);
+        if (!existingOrder) {
+            sendErrorToIframe("Order not found: " + orderId, messageId);
             return;
         }
 
-        // Update the order in the database
-        const updatedOrder = await wixData.update("Orders", orderData.orderId, {
-            status: orderData.newStatus,
+        const updatedOrder = await wixData.update("Orders", {
+            _id: orderId,
+            status: newStatus,
             _updatedDate: new Date()
         });
 
-        console.log('✅ Order updated in database:', orderData.orderId, '->', orderData.newStatus);
-
-        // Send success response back to iframe
         sendMessageToIframe({
             type: 'UPDATE_ORDER_STATUS',
             data: {
-                orderId: orderData.orderId,
-                newStatus: orderData.newStatus,
+                orderId,
+                newStatus,
                 success: true,
                 message: "Order status updated successfully",
                 timestamp: new Date().toISOString()
@@ -299,52 +258,11 @@ async function handleUpdateOrderStatus(orderData, messageId) {
             id: messageId
         });
 
-        console.log('✅ Update order status response sent to iframe');
+        console.log('✅ Order updated via handleUpdateOrderStatus:', updatedOrder);
 
     } catch (error) {
         console.error('❌ Error updating order status:', error);
         sendErrorToIframe("Failed to update order status: " + error.message, messageId);
-    }
-}
-
-async function handleViewUser(userData, messageId) {
-    try {
-        const { userId } = userData;
-        const user = await wixUsers.getUser(userId);
-
-        if (!user) {
-            sendErrorToIframe("User not found", messageId);
-            return;
-        }
-
-        const userDetails = {
-            id: user.id,
-            email: user.email,
-            loginEmail: user.loginEmail,
-            createdDate: user.createdDate,
-            lastLoginDate: user.lastLoginDate
-        };
-
-        sendMessageToIframe({
-            type: 'ADMIN_ACTION_RESPONSE',
-            data: { action: 'VIEW_USER', success: true, user: userDetails },
-            id: messageId
-        });
-    } catch {
-        sendErrorToIframe("Failed to fetch user", messageId);
-    }
-}
-
-async function handleSendEmail(emailData, messageId) {
-    try {
-        const { to, subject, body } = emailData;
-        sendMessageToIframe({
-            type: 'ADMIN_ACTION_RESPONSE',
-            data: { action: 'SEND_EMAIL', success: true, message: "Email sent successfully" },
-            id: messageId
-        });
-    } catch {
-        sendErrorToIframe("Failed to send email", messageId);
     }
 }
 
