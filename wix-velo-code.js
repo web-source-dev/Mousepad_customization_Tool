@@ -29,6 +29,9 @@ $w.onReady(function () {
                 case 'ADMIN_ACTION':
                     await handleAdminAction(data, id);
                     break;
+                case 'UPDATE_ORDER_STATUS':
+                    await handleUpdateOrderStatus(data, id);
+                    break;
                 case 'FETCH_ORDERS':
                     await handleFetchOrders(id);
                     break;
@@ -211,6 +214,75 @@ async function handleUpdateOrder(orderData, messageId) {
         });
     } catch {
         sendErrorToIframe("Failed to update order", messageId);
+    }
+}
+
+async function handleUpdateOrderStatus(orderData, messageId) {
+    try {
+        console.log('🔄 Processing order status update:', orderData);
+        
+        // Deep log the payload to check for missing keys
+        console.log('📊 Update payload details:', {
+            orderId: orderData.orderId,
+            newStatus: orderData.newStatus,
+            timestamp: orderData.timestamp
+        });
+
+        if (!orderData.orderId || !orderData.newStatus) {
+            console.error('❌ Missing required fields in update payload:', orderData);
+            sendErrorToIframe("Missing orderId or newStatus", messageId);
+            return;
+        }
+
+        // Validate status values
+        const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+        if (!validStatuses.includes(orderData.newStatus)) {
+            console.error('❌ Invalid status value:', orderData.newStatus);
+            sendErrorToIframe("Invalid status value. Must be one of: " + validStatuses.join(', '), messageId);
+            return;
+        }
+
+        // Check if order exists before updating
+        try {
+            const existingOrder = await wixData.get("Orders", orderData.orderId);
+            if (!existingOrder) {
+                console.error('❌ Order not found:', orderData.orderId);
+                sendErrorToIframe("Order not found: " + orderData.orderId, messageId);
+                return;
+            }
+            console.log('✅ Order found, current status:', existingOrder.status);
+        } catch (getError) {
+            console.error('❌ Error checking if order exists:', getError);
+            sendErrorToIframe("Error checking order existence: " + getError.message, messageId);
+            return;
+        }
+
+        // Update the order in the database
+        const updatedOrder = await wixData.update("Orders", orderData.orderId, {
+            status: orderData.newStatus,
+            _updatedDate: new Date()
+        });
+
+        console.log('✅ Order updated in database:', orderData.orderId, '->', orderData.newStatus);
+
+        // Send success response back to iframe
+        sendMessageToIframe({
+            type: 'UPDATE_ORDER_STATUS',
+            data: {
+                orderId: orderData.orderId,
+                newStatus: orderData.newStatus,
+                success: true,
+                message: "Order status updated successfully",
+                timestamp: new Date().toISOString()
+            },
+            id: messageId
+        });
+
+        console.log('✅ Update order status response sent to iframe');
+
+    } catch (error) {
+        console.error('❌ Error updating order status:', error);
+        sendErrorToIframe("Failed to update order status: " + error.message, messageId);
     }
 }
 

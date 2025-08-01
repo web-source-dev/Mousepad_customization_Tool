@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Download, Search, Filter, Calendar, User, Package, DollarSign, Edit, Users, Settings, Eye, Mail, Phone, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/sonner';
 
 // Order data structure based on actual Wix database
 interface OrderItem {
@@ -232,6 +234,7 @@ const statusIcons = {
 };
 
 export default function AdminPanel() {
+  const { toast } = useToast();
   console.log('🎯 AdminPanel component rendering...');
   
   // Add error boundary state
@@ -260,6 +263,7 @@ export default function AdminPanel() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [usersLoaded, setUsersLoaded] = useState(false);
+  const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set());
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [showReloadButton, setShowReloadButton] = useState(false);
 
@@ -292,10 +296,56 @@ export default function AdminPanel() {
       console.log('🚀 Admin Panel initializing...');
       initializeWixCommunication();
       
+      // Expose updateOrderStatus function globally for iframe communication
+      (window as any).updateOrderStatus = (orderId: string, newStatus: string) => {
+        console.log('🔄 updateOrderStatus called from iframe:', orderId, newStatus);
+        try {
+          // Validate inputs
+          if (!orderId || !newStatus) {
+            console.error('❌ Invalid parameters for updateOrderStatus:', { orderId, newStatus });
+            toast && toast({
+              title: "Invalid Parameters",
+              description: "Order ID and status are required",
+              variant: "destructive"
+            });
+            return false;
+          }
+
+          // Send update request to Wix
+          sendMessageToWix({
+            type: 'UPDATE_ORDER_STATUS',
+            data: {
+              orderId: String(orderId),
+              newStatus: String(newStatus),
+              timestamp: new Date().toISOString()
+            },
+            id: Date.now().toString()
+          });
+
+          console.log('✅ updateOrderStatus request sent successfully');
+          toast && toast({
+            title: "Update Request Sent",
+            description: `Requesting status change to ${newStatus}`,
+            variant: "default"
+          });
+          return true;
+        } catch (error) {
+          console.error('❌ Error in updateOrderStatus:', error);
+          toast && toast({
+            title: "Update Failed",
+            description: `Failed to send update request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            variant: "destructive"
+          });
+          return false;
+        }
+      };
+      
       // Cleanup on unmount
       return () => {
         console.log('🧹 Cleaning up admin panel...');
         window.removeEventListener('message', handleWixMessage);
+        // Remove global function
+        delete (window as any).updateOrderStatus;
       };
     } catch (error) {
       console.error('❌ Error during initialization:', error);
@@ -390,8 +440,8 @@ export default function AdminPanel() {
       
       // Verify origin (you should add your Wix domain here)
       const allowedOrigins = [
-        'https://your-wix-site.wixsite.com',
-        'https://your-wix-site.com',
+        'https://www.evogearstudio.com/admin?rc=test-site',
+        'https://www.evogearstudio.com/admin',
         'https://www.evogearstudio.com' // Add your actual Wix domain
       ];
       
@@ -401,8 +451,8 @@ export default function AdminPanel() {
         // Don't return here to allow development testing
       }
       
-      const { type, data } = event.data;
-      console.log('📬 Processing message type:', type);
+      const { type, data, id } = event.data;
+      console.log('📬 Processing message type:', type, 'with id:', id);
       
       switch (type) {
         case 'USER_DATA_RESPONSE':
@@ -421,6 +471,10 @@ export default function AdminPanel() {
           console.log('⚙️ Admin action response:', data);
           handleAdminActionResponse(data);
           break;
+        case 'UPDATE_ORDER_STATUS':
+          console.log('🔄 Update order status received:', data);
+          handleUpdateOrderStatus(data);
+          break;
         case 'FETCH_ORDERS_RESPONSE':
           console.log('📋 Fetch orders response:', data);
           handleFetchOrdersResponse(data);
@@ -438,6 +492,8 @@ export default function AdminPanel() {
       }
     } catch (error) {
       console.error('❌ Error handling Wix message:', error);
+      // Show error toast to user
+      console.error('🚨 Critical error in message handling:', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
@@ -536,6 +592,102 @@ export default function AdminPanel() {
       }
     } catch (error) {
       console.error('❌ Error handling admin action response:', error);
+    }
+  };
+
+  // Handle order status updates from Wix
+  const handleUpdateOrderStatus = (data: any) => {
+    try {
+      console.log('🔄 Processing order status update:', data);
+      
+      // Deep log the payload to check for missing keys
+      console.log('📊 Update payload details:', {
+        orderId: data.orderId,
+        newStatus: data.newStatus,
+        success: data.success,
+        message: data.message,
+        timestamp: data.timestamp
+      });
+
+      if (!data.orderId || !data.newStatus) {
+        console.error('❌ Missing required fields in update payload:', data);
+        return;
+      }
+
+      // Check if this orderId has already been processed
+      const processedKey = `${data.orderId}-${data.newStatus}-${data.timestamp}`;
+      if (processedOrders.has(processedKey)) {
+        console.warn('⚠️ Duplicate order update detected, skipping:', processedKey);
+        return;
+      }
+
+      // Update local state
+      setOrders(prev => {
+        const updated = prev.map(order => {
+          if (order.id === data.orderId) {
+            console.log('✅ Updating order status:', order.id, 'from', order.status, 'to', data.newStatus);
+            return {
+              ...order,
+              status: data.newStatus as Order['status']
+            };
+          }
+          return order;
+        });
+        
+        // Check if order was actually updated
+        const orderUpdated = updated.some(order => order.id === data.orderId);
+        if (!orderUpdated) {
+          console.warn('⚠️ Order not found for update:', data.orderId);
+        }
+        
+        return updated;
+      });
+
+      // Mark as processed
+      setProcessedOrders(prev => new Set([...prev, processedKey]));
+
+      // Show success feedback
+      console.log('✅ Order status updated successfully:', data.orderId, '->', data.newStatus);
+      
+      // Show success toast
+      toast && toast({
+        title: "Order Status Updated",
+        description: `Order ${data.orderId} status changed to ${data.newStatus}`,
+        variant: "default"
+      });
+      
+      // Send confirmation back to Wix
+      sendMessageToWix({
+        type: 'UPDATE_ORDER_STATUS_CONFIRMED',
+        data: {
+          orderId: data.orderId,
+          newStatus: data.newStatus,
+          success: true,
+          timestamp: new Date().toISOString()
+        },
+        id: data.id || Date.now().toString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error handling order status update:', error);
+      
+      // Show error toast
+      toast && toast({
+        title: "Update Failed",
+        description: `Failed to update order status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+      
+      // Send error back to Wix
+      sendMessageToWix({
+        type: 'UPDATE_ORDER_STATUS_ERROR',
+        data: {
+          orderId: data.orderId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        },
+        id: data.id || Date.now().toString()
+      });
     }
   };
 
@@ -1735,6 +1887,9 @@ export default function AdminPanel() {
             )}
           </DialogContent>
         </Dialog>
+        
+        {/* Toast Notifications */}
+        <Toaster />
       </div>
     </div>
   );
