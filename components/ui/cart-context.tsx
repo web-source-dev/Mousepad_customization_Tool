@@ -134,6 +134,16 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
       return '/placeholder.svg';
     }
 
+    // Get mousepad dimensions from configuration
+    const mousepadSize = item.configuration?.mousepadSize || '400x900';
+    const [width, height] = mousepadSize.split('x').map(Number);
+    
+    // Validate dimensions and provide fallback
+    const finalWidth = width && !isNaN(width) ? width : 400;
+    const finalHeight = height && !isNaN(height) ? height : 900;
+    
+    console.log('Mousepad dimensions:', finalWidth, 'x', finalHeight);
+
     // Create a canvas to regenerate the final image
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -143,27 +153,16 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
       img.onload = async () => {
         console.log('Base image loaded, dimensions:', img.width, 'x', img.height);
         
-        // Set canvas size to match image dimensions
-        canvas.width = img.width;
-        canvas.height = img.height;
+        // Set canvas size to match mousepad dimensions
+        canvas.width = finalWidth;
+        canvas.height = finalHeight;
 
-        // Ensure minimum size for visibility
-        const minSize = 200;
-        if (canvas.width < minSize || canvas.height < minSize) {
-          const scale = Math.max(minSize / canvas.width, minSize / canvas.height);
-          canvas.width = Math.round(canvas.width * scale);
-          canvas.height = Math.round(canvas.height * scale);
-          console.log('Scaled canvas to:', canvas.width, 'x', canvas.height);
-        }
+        console.log('Canvas set to mousepad size:', canvas.width, 'x', canvas.height);
 
         if (ctx) {
-          // Draw base image
-          if (canvas.width === img.width && canvas.height === img.height) {
-            ctx.drawImage(img, 0, 0);
-          } else {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          }
-          console.log('Base image drawn to canvas');
+          // Draw base image to fit mousepad dimensions
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          console.log('Base image drawn to canvas at mousepad size');
 
           // Apply image adjustments if available
           const adjustments = item.configuration?.imageSettings?.adjustments;
@@ -173,11 +172,11 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
             // This is a simplified version - in a real implementation you'd use more sophisticated image processing
           }
 
-          // Draw text elements
+          // Draw text elements (optional - only if they exist)
           const textElements = item.configuration?.textElements || [];
           console.log('Drawing text elements:', textElements.length);
           textElements.forEach((element: any) => {
-            if (ctx && element.type === 'text') {
+            if (ctx && element.type === 'text' && element.text && element.text.trim()) {
               const fontWeight = element.font === "Orbitron" || element.font === "Audiowide" ? "bold" : "normal";
               const fontSize = Math.max(element.size * 1.5, 18);
               ctx.font = `${fontWeight} ${fontSize}px ${element.font}`;
@@ -185,6 +184,7 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
+              // Calculate position based on percentage of mousepad dimensions
               const x = (element.position.x / 100) * canvas.width;
               const y = (element.position.y / 100) * canvas.height;
 
@@ -210,11 +210,11 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
 
               ctx.fillText(element.text, 0, 0);
               ctx.restore();
-              console.log('Drew text element:', element.text);
+              console.log('Drew text element:', element.text, 'at position:', x, y);
             }
           });
 
-          // Draw overlays - use Promise.all to wait for all overlays to load
+          // Draw overlays FIRST - use Promise.all to wait for all overlays to load
           const appliedOverlays = item.configuration?.appliedOverlays || [];
           console.log('Drawing overlays:', appliedOverlays.length, appliedOverlays);
           if (appliedOverlays.length > 0) {
@@ -237,6 +237,7 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
                 });
 
                 if (ctx) {
+                  // Draw overlay to cover the entire canvas
                   ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
                   console.log(`Drew overlay ${index + 1} to canvas`);
                 }

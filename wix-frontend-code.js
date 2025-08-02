@@ -152,8 +152,8 @@ async function saveOrderToDatabase(email, data) {
                 // Minimal configuration - only essential data
                 configuration: {
                     mousepadType: item.configuration?.mousepadType || "standard",
-                    mousepadSize: item.configuration?.mousepadSize || "",
-                    thickness: item.configuration?.thickness || "",
+                    mousepadSize: item.configuration?.mousepadSize || "400x900",
+                    thickness: item.configuration?.thickness || "5mm",
                     rgb: item.configuration?.rgb ? {
                         mode: item.configuration.rgb.mode,
                         color: item.configuration.rgb.color,
