@@ -346,7 +346,7 @@ export default function UserDetailsForm({
               className="flex-1"
               disabled={isLoading}
             >
-              {isLoading ? 'Processing...' : 'Pay Now'}
+              {isLoading ? 'Processing Payment...' : 'Proceed to Payment'}
             </Button>
           </div>
         </form>

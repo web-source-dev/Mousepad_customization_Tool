@@ -38,6 +38,35 @@ export default function CartPage() {
       if (event.data?.type === "clearCart") {
         clearCart();
       }
+      if (event.data?.type === "paymentSuccess") {
+        console.log("Payment successful, clearing cart");
+        clearCart();
+        setShowUserDetailsForm(false);
+        toast && toast({
+          title: "Payment Successful!",
+          description: "Your order has been placed successfully. You will receive a confirmation email shortly.",
+          duration: 5000,
+        });
+      }
+      if (event.data?.type === "paymentFailed") {
+        console.log("Payment failed");
+        setCheckingOut(false);
+        toast && toast({
+          title: "Payment Failed",
+          description: "There was an issue with your payment. Please try again.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+      if (event.data?.type === "paymentCancelled") {
+        console.log("Payment cancelled");
+        setCheckingOut(false);
+        toast && toast({
+          title: "Payment Cancelled",
+          description: "Your payment was cancelled. You can try again or return to your cart.",
+          duration: 5000,
+        });
+      }
     }
     window.addEventListener("message", handleMessage);
 
@@ -136,7 +165,7 @@ export default function CartPage() {
 
       console.log('Checkout data:', checkoutData);
 
-      console.log('Sending complete checkout data to Wix:', {
+      console.log('Sending complete checkout data to Wix for payment processing:', {
         orderId: checkoutData.orderId,
         itemCount: checkoutData.items.length,
         total: checkoutData.total,
@@ -146,7 +175,7 @@ export default function CartPage() {
       if (typeof window !== "undefined" && window.parent) {
         window.parent.postMessage(
           {
-            type: "checkoutData",
+            type: "initiatePayment",
             payload: checkoutData,
           },
           "*"
@@ -154,18 +183,16 @@ export default function CartPage() {
       }
 
       setCheckingOut(true);
-      setTimeout(() => {
-        setCheckingOut(false);
-        setShowUserDetailsForm(false);
-        toast &&
-          toast({
-            title: "Checkout Complete",
-            description: "Order data sent to Wix. You will receive a confirmation email shortly.",
-            duration: 3000,
-          });
-      }, 1200);
+      // Don't clear cart or close form here - wait for payment success/failure message
+      toast &&
+        toast({
+          title: "Payment Processing",
+          description: "Your payment is being processed. Please wait...",
+          duration: 3000,
+        });
     } catch (error) {
       console.error('Error processing checkout:', error);
+      setCheckingOut(false);
       toast &&
         toast({
           title: "Checkout Error",
