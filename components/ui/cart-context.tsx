@@ -112,12 +112,8 @@ const calculateItemTotalPrice = (item: CartItem): number => {
 // Helper function to regenerate final image from configuration
 const regenerateFinalImage = async (item: CartItem): Promise<string> => {
   try {
-    console.log('Starting image regeneration for item:', item.id);
-    console.log('Item configuration:', item.configuration);
-    
     // If we already have a finalImage that's not a placeholder, use it
     if (item.finalImage && item.finalImage !== '/placeholder.svg' && !item.finalImage.includes('data:image')) {
-      console.log('Using existing finalImage:', item.finalImage);
       return item.finalImage;
     }
 
@@ -127,22 +123,9 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
                      item.originalImageUrl || 
                      item.image;
 
-    console.log('Base image source:', baseImage);
-
     if (!baseImage || baseImage === '/placeholder.svg') {
-      console.log('No valid base image found, using placeholder');
       return '/placeholder.svg';
     }
-
-    // Get mousepad dimensions from configuration
-    const mousepadSize = item.configuration?.mousepadSize || '400x900';
-    const [width, height] = mousepadSize.split('x').map(Number);
-    
-    // Validate dimensions and provide fallback
-    const finalWidth = width && !isNaN(width) ? width : 400;
-    const finalHeight = height && !isNaN(height) ? height : 900;
-    
-    console.log('Mousepad dimensions:', finalWidth, 'x', finalHeight);
 
     // Create a canvas to regenerate the final image
     const canvas = document.createElement('canvas');
@@ -150,33 +133,38 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
     const img = new window.Image();
 
     return new Promise((resolve, reject) => {
-      img.onload = async () => {
-        console.log('Base image loaded, dimensions:', img.width, 'x', img.height);
-        
-        // Set canvas size to match mousepad dimensions
-        canvas.width = finalWidth;
-        canvas.height = finalHeight;
+      img.onload = () => {
+        // Set canvas size to match image dimensions
+        canvas.width = img.width;
+        canvas.height = img.height;
 
-        console.log('Canvas set to mousepad size:', canvas.width, 'x', canvas.height);
+        // Ensure minimum size for visibility
+        const minSize = 200;
+        if (canvas.width < minSize || canvas.height < minSize) {
+          const scale = Math.max(minSize / canvas.width, minSize / canvas.height);
+          canvas.width = Math.round(canvas.width * scale);
+          canvas.height = Math.round(canvas.height * scale);
+        }
 
         if (ctx) {
-          // Draw base image to fit mousepad dimensions
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          console.log('Base image drawn to canvas at mousepad size');
+          // Draw base image
+          if (canvas.width === img.width && canvas.height === img.height) {
+            ctx.drawImage(img, 0, 0);
+          } else {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          }
 
           // Apply image adjustments if available
           const adjustments = item.configuration?.imageSettings?.adjustments;
           if (adjustments) {
-            console.log('Applying image adjustments:', adjustments);
             // Apply brightness, contrast, etc. using CSS filters
             // This is a simplified version - in a real implementation you'd use more sophisticated image processing
           }
 
-          // Draw text elements (optional - only if they exist)
+          // Draw text elements
           const textElements = item.configuration?.textElements || [];
-          console.log('Drawing text elements:', textElements.length);
           textElements.forEach((element: any) => {
-            if (ctx && element.type === 'text' && element.text && element.text.trim()) {
+            if (ctx && element.type === 'text') {
               const fontWeight = element.font === "Orbitron" || element.font === "Audiowide" ? "bold" : "normal";
               const fontSize = Math.max(element.size * 1.5, 18);
               ctx.font = `${fontWeight} ${fontSize}px ${element.font}`;
@@ -184,7 +172,6 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
-              // Calculate position based on percentage of mousepad dimensions
               const x = (element.position.x / 100) * canvas.width;
               const y = (element.position.y / 100) * canvas.height;
 
@@ -210,47 +197,33 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
 
               ctx.fillText(element.text, 0, 0);
               ctx.restore();
-              console.log('Drew text element:', element.text, 'at position:', x, y);
             }
           });
 
-          // Draw overlays FIRST - use Promise.all to wait for all overlays to load
+          // Draw overlays
           const appliedOverlays = item.configuration?.appliedOverlays || [];
-          console.log('Drawing overlays:', appliedOverlays.length, appliedOverlays);
-          if (appliedOverlays.length > 0) {
+          appliedOverlays.forEach(async (overlayUrl: string) => {
             try {
-              await Promise.all(appliedOverlays.map(async (overlayUrl: string, index: number) => {
-                console.log(`Loading overlay ${index + 1}:`, overlayUrl);
-                const overlayImg = new window.Image();
-                overlayImg.crossOrigin = 'anonymous';
-                
-                await new Promise((resolve, reject) => {
-                  overlayImg.onload = () => {
-                    console.log(`Overlay ${index + 1} loaded successfully`);
-                    resolve(true);
-                  };
-                  overlayImg.onerror = (error) => {
-                    console.error(`Failed to load overlay ${index + 1}:`, error);
-                    reject(error);
-                  };
-                  overlayImg.src = overlayUrl;
-                });
+              const overlayImg = new window.Image();
+              overlayImg.crossOrigin = 'anonymous';
+              
+              await new Promise((resolve, reject) => {
+                overlayImg.onload = resolve;
+                overlayImg.onerror = reject;
+                overlayImg.src = overlayUrl;
+              });
 
-                if (ctx) {
-                  // Draw overlay to cover the entire canvas
-                  ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
-                  console.log(`Drew overlay ${index + 1} to canvas`);
-                }
-              }));
+              if (ctx) {
+                ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+              }
             } catch (error) {
-              console.warn('Failed to draw overlays:', error);
+              console.warn('Failed to draw overlay:', error);
             }
-          }
+          });
 
           // Add RGB effects if applicable
           const rgb = item.configuration?.rgb;
           if (rgb && item.configuration?.mousepadType === 'rgb' && ctx) {
-            console.log('Adding RGB effects:', rgb);
             const glowColor = rgb.mode === 'rainbow' ? '#ff0000' : rgb.color;
             const glowIntensity = rgb.brightness / 100;
 
@@ -268,12 +241,9 @@ const regenerateFinalImage = async (item: CartItem): Promise<string> => {
             ctx.fillRect(canvas.width - borderWidth, cornerRadius, borderWidth, canvas.height - cornerRadius * 2);
 
             ctx.restore();
-            console.log('Added RGB border effects');
           }
 
-          const finalImageData = canvas.toDataURL('image/png', 1.0);
-          console.log('Final image generated successfully, size:', finalImageData.length, 'characters');
-          resolve(finalImageData);
+          resolve(canvas.toDataURL('image/png', 1.0));
         } else {
           reject(new Error('Failed to get canvas context'));
         }

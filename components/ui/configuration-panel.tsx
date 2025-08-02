@@ -205,7 +205,7 @@ export function ConfigurationPanel({
       id: key,
       label: size.label,
       value: key,
-      description: `${size.width}×${size.height}mm - Perfect for ${index === 0 ? 'compact setups' : index === 1 ? 'standard desks' : 'large gaming stations'}`,
+      description: `${size.width}×${size.height}mm`,
       icon: index === 0 ? <Smartphone className="h-4 w-4 text-blue-500" /> : 
             index === 1 ? <Monitor className="h-4 w-4 text-green-500" /> : 
             <Gamepad2 className="h-4 w-4 text-purple-500" />,
