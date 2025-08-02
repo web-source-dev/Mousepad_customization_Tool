@@ -498,6 +498,27 @@ export default function CartPage() {
                         <Button size="icon" variant="outline" aria-label="Increase quantity" onClick={() => updateItem(item.id, { quantity: item.quantity + 1 })}>
                           <Plus className="h-4 w-4" />
                         </Button>
+                        
+                        {/* Regenerate Image Button */}
+                        {item.configuration && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={async () => {
+                              await regenerateItemImage(item.id);
+                              toast && toast({
+                                title: "Image Regenerated",
+                                description: "Customized image has been regenerated.",
+                                duration: 2000,
+                              });
+                            }}
+                            className="text-blue-500 hover:text-blue-700 ml-auto"
+                            title="Regenerate customized image"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Regenerate
+                          </Button>
+                        )}
                         <div className="ml-4 text-right">
                           <div className="font-semibold">${getItemTotalPrice(item).toFixed(2)}</div>
                           {item.quantity > 1 && (

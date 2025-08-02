@@ -1,0 +1,90 @@
+import wixMedia from 'wix-media';
+
+/**
+ * Uploads a base64 image to Wix media library
+ * @param {string} base64Data - The base64 image data (with data:image/... prefix)
+ * @param {string} fileName - The filename for the uploaded image
+ * @returns {Promise<Object>} - Returns object with fileUrl and fileId
+ */
+export async function uploadBase64Image(base64Data, fileName) {
+    try {
+        console.log(`Starting upload for file: ${fileName}`);
+        
+        // Remove the data:image/...;base64, prefix to get just the base64 data
+        const base64WithoutPrefix = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
+        
+        // Convert base64 to buffer
+        const buffer = Buffer.from(base64WithoutPrefix, 'base64');
+        
+        // Determine file extension from the original data URL
+        let fileExtension = 'png'; // default
+        if (base64Data.includes('data:image/jpeg')) {
+            fileExtension = 'jpg';
+        } else if (base64Data.includes('data:image/png')) {
+            fileExtension = 'png';
+        } else if (base64Data.includes('data:image/gif')) {
+            fileExtension = 'gif';
+        } else if (base64Data.includes('data:image/webp')) {
+            fileExtension = 'webp';
+        }
+        
+        // Create full filename with extension
+        const fullFileName = `${fileName}.${fileExtension}`;
+        
+        console.log(`Uploading ${fullFileName} (${buffer.length} bytes)`);
+        
+        // Upload to Wix media library
+        const uploadedFile = await wixMedia.upload({
+            file: buffer,
+            fileName: fullFileName,
+            mimeType: `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`
+        });
+        
+        console.log(`File uploaded successfully: ${uploadedFile.fileUrl}`);
+        
+        return {
+            fileUrl: uploadedFile.fileUrl,
+            fileId: uploadedFile.fileId,
+            fileName: fullFileName
+        };
+        
+    } catch (error) {
+        console.error(`Error uploading image ${fileName}:`, error);
+        throw new Error(`Failed to upload image: ${error.message}`);
+    }
+}
+
+/**
+ * Uploads multiple base64 images in parallel
+ * @param {Array} images - Array of objects with base64Data and fileName
+ * @returns {Promise<Array>} - Returns array of upload results
+ */
+export async function uploadMultipleImages(images) {
+    try {
+        console.log(`Starting batch upload of ${images.length} images`);
+        
+        const uploadPromises = images.map(async (imageData, index) => {
+            try {
+                console.log(`Uploading image ${index + 1}/${images.length}: ${imageData.fileName}`);
+                const result = await uploadBase64Image(imageData.base64Data, imageData.fileName);
+                console.log(`Image ${index + 1} uploaded successfully`);
+                return result;
+            } catch (error) {
+                console.error(`Failed to upload image ${index + 1}:`, error);
+                return {
+                    error: error.message,
+                    fileName: imageData.fileName
+                };
+            }
+        });
+        
+        const results = await Promise.all(uploadPromises);
+        console.log(`Batch upload completed. ${results.filter(r => !r.error).length}/${images.length} successful`);
+        
+        return results;
+        
+    } catch (error) {
+        console.error('Error in batch upload:', error);
+        throw error;
+    }
+} 
