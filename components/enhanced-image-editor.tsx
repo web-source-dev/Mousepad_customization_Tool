@@ -1,10 +1,8 @@
 "use client"
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import {
-  Crop,
   Sun,
   Palette,
   Type,
@@ -21,6 +19,7 @@ import {
   ZoomOut,
   Eye,
   EyeOff,
+  Crop,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ImageEditorProps {
   imageSrc: string | null;
@@ -40,6 +40,30 @@ interface ImageEditorProps {
   onClose: () => void;
   aspectRatio?: number;
   mousepadSize?: string;
+  enableLivePreview?: boolean; // New prop for live preview
+  zoom?: number;
+  onZoomChange?: (zoom: number) => void;
+  imagePosition?: { x: number; y: number };
+  onImagePositionChange?: (position: { x: number; y: number }) => void;
+  // Props to preserve editor state
+  currentAdjustments?: {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    blur: number;
+    sharpen: number;
+    gamma: number;
+  };
+  currentFilter?: string;
+  currentTextOverlays?: TextOverlay[];
+  onAdjustmentsChange?: (adjustments: any) => void;
+  onFilterChange?: (filter: string) => void;
+  onTextOverlaysChange?: (textOverlays: TextOverlay[]) => void;
+  // Crop props
+  currentCrop?: CropArea | null;
+  onCropChange?: (crop: CropArea | null) => void;
+  // Reset callback
+  onReset?: () => void;
 }
 
 interface ImageAdjustments {
@@ -74,6 +98,13 @@ interface TextOverlay {
   shadowBlur: number;
   shadowOffsetX: number;
   shadowOffsetY: number;
+}
+
+interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 const FILTERS: Filter[] = [
@@ -113,34 +144,48 @@ export default function EnhancedImageEditor({
   onClose,
   aspectRatio = 16 / 9,
   mousepadSize = '400x900',
+  enableLivePreview = true, // Default to true
+  zoom = 1,
+  onZoomChange,
+  imagePosition = { x: 0, y: 0 },
+  onImagePositionChange,
+  currentAdjustments,
+  currentFilter = 'none',
+  currentTextOverlays = [],
+  onAdjustmentsChange,
+  onFilterChange,
+  onTextOverlaysChange,
+  currentCrop,
+  onCropChange,
+  onReset,
 }: ImageEditorProps) {
   const [currentImage, setCurrentImage] = useState<string | null>(imageSrc);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [adjustments, setAdjustments] = useState<ImageAdjustments>({
-    brightness: 100,
-    contrast: 100,
-    saturation: 100,
-    blur: 0,
-    sharpen: 0,
-    gamma: 100,
-  });
-  const [selectedFilter, setSelectedFilter] = useState<string>('none');
-  const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [adjustments, setAdjustments] = useState<ImageAdjustments>(
+    currentAdjustments || {
+      brightness: 100,
+      contrast: 100,
+      saturation: 100,
+      blur: 0,
+      sharpen: 0,
+      gamma: 100,
+    }
+  );
+  const [selectedFilter, setSelectedFilter] = useState<string>(currentFilter);
+  const [textOverlays, setTextOverlays] = useState<TextOverlay[]>(currentTextOverlays);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeTab, setActiveTab] = useState('crop');
+  const [activeTab, setActiveTab] = useState('adjust');
   const [showTextEditor, setShowTextEditor] = useState(false);
   const [textInput, setTextInput] = useState('');
-  const [cropArea, setCropArea] = useState({ x: 10, y: 10, width: 80, height: 80 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [originalCropArea, setOriginalCropArea] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  const [dragMode, setDragMode] = useState<'move' | 'resize' | null>(null);
-  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
-  const [imageContainer, setImageContainer] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-  const [imageBounds, setImageBounds] = useState<{ x: number; y: number; width: number; height: number }>({ x: 0, y: 0, width: 0, height: 0 });
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  
+  // Text dragging state
+  const [isDraggingText, setIsDraggingText] = useState(false);
+  const [textDragStart, setTextDragStart] = useState({ x: 0, y: 0 });
+  const [draggedTextId, setDraggedTextId] = useState<string | null>(null);
+
   const [textSettings, setTextSettings] = useState({
     fontSize: 24,
     color: '#000000',
@@ -154,12 +199,22 @@ export default function EnhancedImageEditor({
     shadowOffsetY: 2,
   });
 
+  // Crop state
+  const [cropArea, setCropArea] = useState<CropArea | null>(currentCrop || null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropStart, setCropStart] = useState({ x: 0, y: 0 });
+  const [cropEnd, setCropEnd] = useState({ x: 0, y: 0 });
+  const [cropMode, setCropMode] = useState<'select' | 'resize' | 'move'>('select');
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
+  const [cropDragStart, setCropDragStart] = useState({ x: 0, y: 0 });
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-
-
+  const livePreviewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
 
   // Debug log for image loading
   useEffect(() => {
@@ -167,7 +222,108 @@ export default function EnhancedImageEditor({
     console.log('Active tab:', activeTab);
   }, [currentImage, activeTab]);
 
+  // Sync state with props when editor opens
+  useEffect(() => {
+    if (imageSrc) {
+      // Always start with the original image, not the processed one
+      // This allows users to see the original with their previous settings applied
+      setCurrentImage(imageSrc);
+    }
+  }, [imageSrc]);
 
+  // Sync adjustments with props
+  useEffect(() => {
+    if (currentAdjustments) {
+      setAdjustments(currentAdjustments);
+    }
+  }, [currentAdjustments]);
+
+  // Sync filter with props
+  useEffect(() => {
+    if (currentFilter) {
+      setSelectedFilter(currentFilter);
+    }
+  }, [currentFilter]);
+
+  // Sync text overlays with props
+  useEffect(() => {
+    if (currentTextOverlays) {
+      setTextOverlays(currentTextOverlays);
+    }
+  }, [currentTextOverlays]);
+
+  // Sync crop with props
+  useEffect(() => {
+    if (currentCrop) {
+      setCropArea(currentCrop);
+    }
+  }, [currentCrop]);
+
+  // Debounced live preview update
+  const updateLivePreview = useCallback(async () => {
+    if (!enableLivePreview || !currentImage) return;
+    
+    // Clear existing timeout
+    if (livePreviewTimeoutRef.current) {
+      clearTimeout(livePreviewTimeoutRef.current);
+    }
+    
+    // Set new timeout for debounced update
+    livePreviewTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Apply only effects for live preview (text overlays are handled by CSS)
+        const processedImage = await applyEffects();
+        if (processedImage) {
+          setProcessedImage(processedImage); // Update secondary preview
+          // Don't update main preview - only show changes in editor
+        }
+      } catch (error) {
+        console.error('Error updating live preview:', error);
+      }
+    }, 300); // 300ms debounce
+  }, [enableLivePreview, currentImage, adjustments, selectedFilter]);
+
+  // Initialize processed image when component loads
+  useEffect(() => {
+    if (currentImage) {
+      updateLivePreview();
+    }
+  }, [currentImage]);
+
+  // Global mouse events for text dragging
+  useEffect(() => {
+    if (isDraggingText) {
+      document.addEventListener('mousemove', handleTextMouseMove);
+      document.addEventListener('mouseup', handleTextMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleTextMouseMove);
+        document.removeEventListener('mouseup', handleTextMouseUp);
+      };
+    }
+  }, [isDraggingText, draggedTextId, textDragStart]);
+
+  // Global mouse events for crop dragging
+  useEffect(() => {
+    if (isDraggingCrop) {
+      document.addEventListener('mousemove', handleCropMouseMove as any);
+      document.addEventListener('mouseup', handleCropMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleCropMouseMove as any);
+        document.removeEventListener('mouseup', handleCropMouseUp);
+      };
+    }
+  }, [isDraggingCrop, cropArea, cropMode, resizeHandle, cropDragStart]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (livePreviewTimeoutRef.current) {
+        clearTimeout(livePreviewTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -209,116 +365,29 @@ export default function EnhancedImageEditor({
       const img = new Image();
 
       img.onload = () => {
+        // Use original image dimensions for processing
         canvas.width = img.width;
         canvas.height = img.height;
 
-        // Apply adjustments using CSS filters
-        const adjustedCanvas = document.createElement('canvas');
-        const adjustedCtx = adjustedCanvas.getContext('2d');
-        adjustedCanvas.width = canvas.width;
-        adjustedCanvas.height = canvas.height;
-
-        if (adjustedCtx) {
-          adjustedCtx.filter = `
+        if (ctx) {
+          // Apply adjustments using CSS filters
+          ctx.filter = `
             brightness(${adjustments.brightness}%)
             contrast(${adjustments.contrast}%)
             saturate(${adjustments.saturation}%)
             blur(${adjustments.blur}px)
             ${selectedFilter !== 'none' ? selectedFilter : ''}
           `;
-          adjustedCtx.drawImage(img, 0, 0);
+          
+          ctx.drawImage(img, 0, 0);
         }
 
-        resolve(adjustedCanvas.toDataURL('image/jpeg', 0.95));
+        resolve(canvas.toDataURL('image/jpeg', 0.95));
       };
 
       img.src = currentImage;
     });
   }, [currentImage, adjustments, selectedFilter]);
-
-  // Crop image
-  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
-
-  const handleCrop = async () => {
-    if (!currentImage) return;
-
-    setIsProcessing(true);
-    
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-
-      img.onload = () => {
-        try {
-          // Apply zoom first
-          const zoomedCanvas = document.createElement('canvas');
-          const zoomedCtx = zoomedCanvas.getContext('2d');
-          const zoomedWidth = img.width * zoom;
-          const zoomedHeight = img.height * zoom;
-          
-          zoomedCanvas.width = zoomedWidth;
-          zoomedCanvas.height = zoomedHeight;
-          
-          if (zoomedCtx) {
-            zoomedCtx.drawImage(img, 0, 0, zoomedWidth, zoomedHeight);
-          }
-          
-          // Now apply crop
-          const cropX = Math.max(0, (cropArea.x / 100) * zoomedWidth);
-          const cropY = Math.max(0, (cropArea.y / 100) * zoomedHeight);
-          const cropWidth = Math.min(zoomedWidth - cropX, (cropArea.width / 100) * zoomedWidth);
-          const cropHeight = Math.min(zoomedHeight - cropY, (cropArea.height / 100) * zoomedHeight);
-          
-          // Ensure minimum crop size
-          if (cropWidth < 1 || cropHeight < 1) {
-            throw new Error('Crop area too small');
-          }
-
-          canvas.width = cropWidth;
-          canvas.height = cropHeight;
-
-          if (ctx) {
-            ctx.drawImage(
-              zoomedCanvas,
-              cropX,
-              cropY,
-              cropWidth,
-              cropHeight,
-              0,
-              0,
-              cropWidth,
-              cropHeight
-            );
-          }
-
-          const croppedImage = canvas.toDataURL('image/jpeg', 0.95);
-          setCurrentImage(croppedImage);
-          onImageChange(croppedImage); // Update the parent component
-          setCropArea({ x: 10, y: 10, width: 80, height: 80 });
-          setZoom(1);
-        } catch (error) {
-          console.error('Error during crop operation:', error);
-          // Reset to safe state
-          setCropArea({ x: 10, y: 10, width: 80, height: 80 });
-        } finally {
-          setIsProcessing(false);
-        }
-      };
-
-      img.onerror = () => {
-        console.error('Failed to load image for cropping');
-        setIsProcessing(false);
-      };
-
-      img.src = currentImage;
-    } catch (error) {
-      console.error('Error in handleCrop:', error);
-      setIsProcessing(false);
-    }
-  };
 
   // Text overlay functions
   const addTextOverlay = () => {
@@ -343,21 +412,274 @@ export default function EnhancedImageEditor({
       shadowOffsetY: textSettings.shadowOffsetY,
     };
 
-    setTextOverlays(prev => [...prev, newText]);
+    const newTextOverlays = [...textOverlays, newText];
+    setTextOverlays(newTextOverlays);
+    onTextOverlaysChange?.(newTextOverlays);
     setSelectedTextId(newText.id);
     setTextInput('');
     setShowTextEditor(false);
+    
+    // Don't update main preview - only show in editor
+  };
+
+  const editTextOverlay = (textId: string) => {
+    const text = textOverlays.find(t => t.id === textId);
+    if (text) {
+      setTextInput(text.text);
+      setEditingTextId(textId);
+      setShowTextEditor(true);
+    }
+  };
+
+  const saveTextEdit = () => {
+    if (!editingTextId || !textInput.trim()) return;
+
+    const newTextOverlays = textOverlays.map(text => 
+      text.id === editingTextId ? { ...text, text: textInput } : text
+    );
+    setTextOverlays(newTextOverlays);
+    onTextOverlaysChange?.(newTextOverlays);
+    setTextInput('');
+    setEditingTextId(null);
+    setShowTextEditor(false);
+    
+    // Don't update main preview - only show in editor
   };
 
   const updateTextOverlay = (id: string, updates: Partial<TextOverlay>) => {
-    setTextOverlays(prev => prev.map(text => 
+    const newTextOverlays = textOverlays.map(text => 
       text.id === id ? { ...text, ...updates } : text
-    ));
+    );
+    setTextOverlays(newTextOverlays);
+    onTextOverlaysChange?.(newTextOverlays);
+    // Don't update main preview - only show in editor
   };
 
   const removeTextOverlay = (id: string) => {
-    setTextOverlays(prev => prev.filter(text => text.id !== id));
+    const newTextOverlays = textOverlays.filter(text => text.id !== id);
+    setTextOverlays(newTextOverlays);
+    onTextOverlaysChange?.(newTextOverlays);
     setSelectedTextId(null);
+    
+    // Don't update main preview - only show in editor
+  };
+
+  // Text dragging functions
+  const handleTextMouseDown = (e: React.MouseEvent, textId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingText(true);
+    setDraggedTextId(textId);
+    setTextDragStart({ x: e.clientX, y: e.clientY });
+    setSelectedTextId(textId);
+  };
+
+  const handleTextMouseMove = (e: React.MouseEvent | MouseEvent) => {
+    if (!isDraggingText || !draggedTextId || !imageContainerRef.current) return;
+    
+    const deltaX = e.clientX - textDragStart.x;
+    const deltaY = e.clientY - textDragStart.y;
+    
+    // Convert pixel deltas to percentage deltas based on zoomed image size
+    const container = imageContainerRef.current.getBoundingClientRect();
+    const deltaXPercent = (deltaX / container.width) * 100;
+    const deltaYPercent = (deltaY / container.height) * 100;
+    
+    setTextOverlays(prev => prev.map(text => 
+      text.id === draggedTextId 
+        ? { ...text, x: text.x + deltaXPercent, y: text.y + deltaYPercent }
+        : text
+    ));
+    
+    setTextDragStart({ x: e.clientX, y: e.clientY });
+    
+    // Don't update main preview - only show in editor
+  };
+
+  const handleTextMouseUp = () => {
+    if (isDraggingText && draggedTextId) {
+      onTextOverlaysChange?.(textOverlays);
+      // Don't update main preview - only show in editor
+    }
+    setIsDraggingText(false);
+    setDraggedTextId(null);
+  };
+
+  // Crop functions
+  const startCrop = () => {
+    if (!currentImage) return;
+    
+    // Initialize crop area to center 80% of image
+    const newCropArea = {
+      x: 10,
+      y: 10,
+      width: 80,
+      height: 80,
+    };
+    setCropArea(newCropArea);
+    setCropMode('resize');
+  };
+
+  const handleCropMouseDown = (e: React.MouseEvent, handle?: string) => {
+    if (activeTab !== 'crop' || !cropArea) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const rect = imageContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    if (handle) {
+      // Resizing specific handle
+      setResizeHandle(handle);
+      setCropMode('resize');
+    } else if (isPointInCropArea(x, y)) {
+      // Moving the entire crop area
+      setCropMode('move');
+    } else {
+      // Creating new crop area
+      setCropMode('select');
+    }
+    
+    setIsDraggingCrop(true);
+    setCropDragStart({ x, y });
+  };
+
+  const handleCropMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingCrop || !cropArea || activeTab !== 'crop') return;
+    
+    const rect = imageContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    const deltaX = x - cropDragStart.x;
+    const deltaY = y - cropDragStart.y;
+    
+    if (cropMode === 'move') {
+      // Move entire crop area
+      const newX = Math.max(0, Math.min(100 - cropArea.width, cropArea.x + deltaX));
+      const newY = Math.max(0, Math.min(100 - cropArea.height, cropArea.y + deltaY));
+      
+      setCropArea({ ...cropArea, x: newX, y: newY });
+    } else if (cropMode === 'resize' && resizeHandle) {
+      // Resize based on handle
+      const newCropArea = { ...cropArea };
+      
+      switch (resizeHandle) {
+        case 'nw': // Top-left
+          newCropArea.x = Math.min(x, cropArea.x + cropArea.width - 10);
+          newCropArea.y = Math.min(y, cropArea.y + cropArea.height - 10);
+          newCropArea.width = Math.max(10, cropArea.x + cropArea.width - newCropArea.x);
+          newCropArea.height = Math.max(10, cropArea.y + cropArea.height - newCropArea.y);
+          break;
+        case 'n': // Top
+          newCropArea.y = Math.min(y, cropArea.y + cropArea.height - 10);
+          newCropArea.height = Math.max(10, cropArea.y + cropArea.height - newCropArea.y);
+          break;
+        case 'ne': // Top-right
+          newCropArea.y = Math.min(y, cropArea.y + cropArea.height - 10);
+          newCropArea.width = Math.max(10, x - cropArea.x);
+          newCropArea.height = Math.max(10, cropArea.y + cropArea.height - newCropArea.y);
+          break;
+        case 'w': // Left
+          newCropArea.x = Math.min(x, cropArea.x + cropArea.width - 10);
+          newCropArea.width = Math.max(10, cropArea.x + cropArea.width - newCropArea.x);
+          break;
+        case 'e': // Right
+          newCropArea.width = Math.max(10, x - cropArea.x);
+          break;
+        case 'sw': // Bottom-left
+          newCropArea.x = Math.min(x, cropArea.x + cropArea.width - 10);
+          newCropArea.width = Math.max(10, cropArea.x + cropArea.width - newCropArea.x);
+          newCropArea.height = Math.max(10, y - cropArea.y);
+          break;
+        case 's': // Bottom
+          newCropArea.height = Math.max(10, y - cropArea.y);
+          break;
+        case 'se': // Bottom-right
+          newCropArea.width = Math.max(10, x - cropArea.x);
+          newCropArea.height = Math.max(10, y - cropArea.y);
+          break;
+      }
+      
+      // Ensure crop area stays within bounds
+      newCropArea.x = Math.max(0, Math.min(100 - newCropArea.width, newCropArea.x));
+      newCropArea.y = Math.max(0, Math.min(100 - newCropArea.height, newCropArea.y));
+      
+      setCropArea(newCropArea);
+    }
+    
+    setCropDragStart({ x, y });
+  };
+
+  const handleCropMouseUp = () => {
+    if (!isDraggingCrop) return;
+    
+    setIsDraggingCrop(false);
+    setResizeHandle(null);
+    setCropMode('select');
+    
+    if (cropArea) {
+      onCropChange?.(cropArea);
+    }
+  };
+
+  const isPointInCropArea = (x: number, y: number): boolean => {
+    if (!cropArea) return false;
+    return x >= cropArea.x && x <= cropArea.x + cropArea.width &&
+           y >= cropArea.y && y <= cropArea.y + cropArea.height;
+  };
+
+  const applyCrop = async (crop: CropArea) => {
+    if (!currentImage) return;
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    return new Promise((resolve) => {
+      img.onload = () => {
+        // Calculate crop dimensions in pixels
+        const cropX = (crop.x / 100) * img.width;
+        const cropY = (crop.y / 100) * img.height;
+        const cropWidth = (crop.width / 100) * img.width;
+        const cropHeight = (crop.height / 100) * img.height;
+        
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+        
+        if (ctx) {
+          ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        }
+        
+        const croppedImage = canvas.toDataURL('image/jpeg', 0.95);
+        setCurrentImage(croppedImage);
+        setCropArea(null); // Clear crop area after applying
+        onCropChange?.(null);
+        
+        // Update main preview
+        onImageChange(croppedImage);
+        resolve(croppedImage);
+      };
+      
+      img.src = currentImage;
+    });
+  };
+
+  const handleApplyCrop = async () => {
+    if (cropArea) {
+      await applyCrop(cropArea);
+    }
+  };
+
+  const resetCrop = () => {
+    setCropArea(null);
+    onCropChange?.(null);
   };
 
   // Apply all changes and return final image
@@ -370,42 +692,63 @@ export default function EnhancedImageEditor({
       // First apply effects
       const effectedImage = await applyEffects();
       
-      // Then add text overlays
+      // Then add text overlays and apply zoom/position
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const img = new Image();
 
       return new Promise((resolve) => {
         img.onload = () => {
-          canvas.width = img.width;
-          canvas.height = img.height;
+          // Calculate the final canvas size based on zoom
+          const zoomedWidth = img.width * zoom;
+          const zoomedHeight = img.height * zoom;
+          
+          canvas.width = zoomedWidth;
+          canvas.height = zoomedHeight;
 
           if (ctx) {
+            // Apply zoom and position transformations
+            ctx.save();
+            ctx.translate(zoomedWidth / 2, zoomedHeight / 2);
+            ctx.scale(zoom, zoom);
+            ctx.translate(-img.width / 2, -img.height / 2);
+            
+            // Apply position offset
+            const offsetX = (imagePosition.x / 100) * img.width;
+            const offsetY = (imagePosition.y / 100) * img.height;
+            ctx.translate(offsetX, offsetY);
+            
             ctx.drawImage(img, 0, 0);
 
-            // Draw text overlays
-            textOverlays.forEach(text => {
-              ctx.save();
-              ctx.translate(text.x * canvas.width / 100, text.y * canvas.height / 100);
-              ctx.rotate((text.rotation * Math.PI) / 180);
-              ctx.globalAlpha = text.opacity / 100;
+                         // Draw text overlays - position relative to zoomed image
+             textOverlays.forEach(text => {
+               ctx.save();
+               // Position text relative to the zoomed image dimensions
+               const textX = text.x * canvas.width / 100;
+               const textY = text.y * canvas.height / 100;
+               ctx.translate(textX, textY);
+               ctx.rotate((text.rotation * Math.PI) / 180);
+               ctx.globalAlpha = text.opacity / 100;
 
-              const fontSize = (text.fontSize * canvas.width) / 1000;
-              ctx.font = `${text.bold ? 'bold' : 'normal'} ${text.italic ? 'italic' : 'normal'} ${fontSize}px ${text.fontFamily}`;
-              ctx.fillStyle = text.color;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
+               // Scale font size relative to zoomed image
+               const fontSize = (text.fontSize * canvas.width) / 1000;
+               ctx.font = `${text.bold ? 'bold' : 'normal'} ${text.italic ? 'italic' : 'normal'} ${fontSize}px ${text.fontFamily}`;
+               ctx.fillStyle = text.color;
+               ctx.textAlign = 'center';
+               ctx.textBaseline = 'middle';
 
-              if (text.shadow) {
-                ctx.shadowColor = text.shadowColor;
-                ctx.shadowBlur = text.shadowBlur;
-                ctx.shadowOffsetX = text.shadowOffsetX;
-                ctx.shadowOffsetY = text.shadowOffsetY;
-              }
+               if (text.shadow) {
+                 ctx.shadowColor = text.shadowColor;
+                 ctx.shadowBlur = text.shadowBlur;
+                 ctx.shadowOffsetX = text.shadowOffsetX;
+                 ctx.shadowOffsetY = text.shadowOffsetY;
+               }
 
-              ctx.fillText(text.text, 0, 0);
-              ctx.restore();
-            });
+               ctx.fillText(text.text, 0, 0);
+               ctx.restore();
+             });
+            
+            ctx.restore();
           }
 
           const finalImage = canvas.toDataURL('image/jpeg', 0.95);
@@ -424,327 +767,72 @@ export default function EnhancedImageEditor({
 
   // Save changes
   const handleSave = async () => {
-    const finalImage = await applyAllChanges();
-    onImageChange(finalImage);
-    onClose();
-  };
-
-  // Calculate image bounds when image loads
-  const calculateImageBounds = useCallback(() => {
-    if (imageRef.current && imageContainerRef.current) {
-      const container = imageContainerRef.current.getBoundingClientRect();
-      const img = imageRef.current.getBoundingClientRect();
+    try {
+      setIsProcessing(true);
       
-      console.log('Calculating bounds:', { container, img });
+      // Apply all changes to get the final edited image
+      const finalImage = await applyAllChanges();
       
-      // Prevent division by zero and ensure valid dimensions
-      if (container.width > 0 && container.height > 0) {
-        setImageContainer({ width: container.width, height: container.height });
-        setImageBounds({
-          x: img.left - container.left,
-          y: img.top - container.top,
-          width: img.width,
-          height: img.height
-        });
-        console.log('Bounds set:', { width: container.width, height: container.height });
-      } else {
-        console.log('Invalid container dimensions:', { width: container.width, height: container.height });
-      }
-    } else {
-      console.log('Missing refs:', { imageRef: !!imageRef.current, imageContainerRef: !!imageContainerRef.current });
-    }
-  }, []);
-
-  // Crop area interaction functions
-  const handleCropMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const target = e.target as HTMLElement;
-    console.log('Mouse down on:', target.className, 'data-handle:', target.dataset.handle);
-    
-    // Check if the target or any of its parents has the crop-handle class
-    let currentTarget = target;
-    while (currentTarget && currentTarget !== e.currentTarget) {
-      if (currentTarget.classList.contains('crop-handle')) {
-        setDragMode('resize');
-        setResizeHandle(currentTarget.dataset.handle || null);
-        setIsDragging(true);
-        setDragStart({ x: e.clientX, y: e.clientY });
-        setOriginalCropArea(cropArea);
-        return;
-      }
-      currentTarget = currentTarget.parentElement as HTMLElement;
-    }
-    
-    // If not a handle, check if it's the crop area
-    if (target.classList.contains('crop-area') || target.closest('.crop-area')) {
-      setDragMode('move');
-      setIsDragging(true);
-      setDragStart({ x: e.clientX, y: e.clientY });
-      setOriginalCropArea(cropArea);
-    }
-  };
-
-  const handleCropMouseMove = (e: React.MouseEvent | MouseEvent) => {
-    if (!isDragging || !imageContainer.width || !imageContainer.height) {
-      console.log('Mouse move blocked:', { isDragging, imageContainerWidth: imageContainer.width, imageContainerHeight: imageContainer.height });
-      return;
-    }
-    
-    const deltaX = e.clientX - dragStart.x;
-    const deltaY = e.clientY - dragStart.y;
-    
-    if (dragMode === 'move') {
-      const deltaXPercent = (deltaX / imageContainer.width) * 100;
-      const deltaYPercent = (deltaY / imageContainer.height) * 100;
+      // Update the image in the main customizer
+      onImageChange(finalImage);
       
-      setCropArea(prev => ({
-        x: Math.max(0, Math.min(100 - originalCropArea.width, originalCropArea.x + deltaXPercent)),
-        y: Math.max(0, Math.min(100 - originalCropArea.height, originalCropArea.y + deltaYPercent)),
-        width: originalCropArea.width,
-        height: originalCropArea.height,
-      }));
-    } else if (dragMode === 'resize' && resizeHandle) {
-      const deltaXPercent = (deltaX / imageContainer.width) * 100;
-      const deltaYPercent = (deltaY / imageContainer.height) * 100;
-      
-      setCropArea(prev => {
-        let newArea = { ...prev };
-        
-        switch (resizeHandle) {
-          case 'nw':
-            newArea.x = Math.max(0, originalCropArea.x + deltaXPercent);
-            newArea.y = Math.max(0, originalCropArea.y + deltaYPercent);
-            newArea.width = Math.max(20, Math.min(100 - newArea.x, originalCropArea.width - deltaXPercent));
-            newArea.height = Math.max(20, Math.min(100 - newArea.y, originalCropArea.height - deltaYPercent));
-            break;
-          case 'ne':
-            newArea.y = Math.max(0, originalCropArea.y + deltaYPercent);
-            newArea.width = Math.max(20, Math.min(100 - originalCropArea.x, originalCropArea.width + deltaXPercent));
-            newArea.height = Math.max(20, Math.min(100 - newArea.y, originalCropArea.height - deltaYPercent));
-            break;
-          case 'sw':
-            newArea.x = Math.max(0, originalCropArea.x + deltaXPercent);
-            newArea.width = Math.max(20, Math.min(100 - newArea.x, originalCropArea.width - deltaXPercent));
-            newArea.height = Math.max(20, Math.min(100 - originalCropArea.y, originalCropArea.height + deltaYPercent));
-            break;
-          case 'se':
-            newArea.width = Math.max(20, Math.min(100 - originalCropArea.x, originalCropArea.width + deltaXPercent));
-            newArea.height = Math.max(20, Math.min(100 - originalCropArea.y, originalCropArea.height + deltaYPercent));
-            break;
-          case 'n':
-            newArea.y = Math.max(0, originalCropArea.y + deltaYPercent);
-            newArea.height = Math.max(20, Math.min(100 - newArea.y, originalCropArea.height - deltaYPercent));
-            break;
-          case 's':
-            newArea.height = Math.max(20, Math.min(100 - originalCropArea.y, originalCropArea.height + deltaYPercent));
-            break;
-          case 'w':
-            newArea.x = Math.max(0, originalCropArea.x + deltaXPercent);
-            newArea.width = Math.max(20, Math.min(100 - newArea.x, originalCropArea.width - deltaXPercent));
-            break;
-          case 'e':
-            newArea.width = Math.max(20, Math.min(100 - originalCropArea.x, originalCropArea.width + deltaXPercent));
-            break;
-        }
-        
-        // Maintain aspect ratio if needed (for corner handles and when aspect ratio is enforced)
-        if (aspectRatio && aspectRatio !== 0 && ['nw', 'ne', 'sw', 'se'].includes(resizeHandle || '')) {
-          const currentRatio = newArea.width / newArea.height;
-          if (Math.abs(currentRatio - aspectRatio) > 0.1) {
-            // Calculate which dimension changed more and adjust the other accordingly
-            const widthChange = Math.abs(newArea.width - originalCropArea.width);
-            const heightChange = Math.abs(newArea.height - originalCropArea.height);
-            
-            if (widthChange > heightChange) {
-              // Width changed more, adjust height
-              const targetHeight = newArea.width / aspectRatio;
-              // Check if the target height would fit within bounds
-              if (targetHeight >= 20 && targetHeight <= 100 - newArea.y) {
-                newArea.height = targetHeight;
-              } else {
-                // If height can't be adjusted, adjust width instead
-                const maxHeight = 100 - newArea.y;
-                const minHeight = 20;
-                if (maxHeight >= minHeight) {
-                  const constrainedHeight = Math.max(minHeight, Math.min(maxHeight, targetHeight));
-                  newArea.height = constrainedHeight;
-                  newArea.width = constrainedHeight * aspectRatio;
-                  // Ensure width stays within bounds
-                  newArea.width = Math.max(20, Math.min(100 - newArea.x, newArea.width));
-                }
-              }
-            } else {
-              // Height changed more, adjust width
-              const targetWidth = newArea.height * aspectRatio;
-              // Check if the target width would fit within bounds
-              if (targetWidth >= 20 && targetWidth <= 100 - newArea.x) {
-                newArea.width = targetWidth;
-              } else {
-                // If width can't be adjusted, adjust height instead
-                const maxWidth = 100 - newArea.x;
-                const minWidth = 20;
-                if (maxWidth >= minWidth) {
-                  const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, targetWidth));
-                  newArea.width = constrainedWidth;
-                  newArea.height = constrainedWidth / aspectRatio;
-                  // Ensure height stays within bounds
-                  newArea.height = Math.max(20, Math.min(100 - newArea.y, newArea.height));
-                }
-              }
-            }
-          }
-        }
-        
-        return newArea;
+      // Show success toast
+      toast({
+        title: "Changes Applied",
+        description: "Image has been updated with all customizations applied.",
+        duration: 3000,
       });
+      
+      // Close the editor
+      onClose();
+    } catch (error) {
+      console.error('Error applying changes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to apply changes. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setDragStart({ x: e.clientX, y: e.clientY });
   };
 
-  const handleCropMouseUp = () => {
-    setIsDragging(false);
-    setDragMode(null);
-    setResizeHandle(null);
-    
-    // Validate and fix crop area if it became invalid during resize
-    setCropArea(prev => {
-      const fixedArea = { ...prev };
-      
-      // Ensure minimum size
-      if (fixedArea.width < 20) fixedArea.width = 20;
-      if (fixedArea.height < 20) fixedArea.height = 20;
-      
-      // Ensure position is within bounds
-      if (fixedArea.x < 0) fixedArea.x = 0;
-      if (fixedArea.y < 0) fixedArea.y = 0;
-      if (fixedArea.x + fixedArea.width > 100) {
-        fixedArea.x = Math.max(0, 100 - fixedArea.width);
-      }
-      if (fixedArea.y + fixedArea.height > 100) {
-        fixedArea.y = Math.max(0, 100 - fixedArea.height);
-      }
-      
-      return fixedArea;
-    });
-  };
 
-  // Calculate bounds when image loads
-  useEffect(() => {
-    if (currentImage && activeTab === 'crop') {
-      // Use a longer timeout to ensure the image is fully rendered
-      const timer = setTimeout(calculateImageBounds, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [currentImage, activeTab, calculateImageBounds]);
-
-  // Reset crop state when switching modes
-  useEffect(() => {
-    if (activeTab === 'crop') {
-      setCroppedAreaPixels(null);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      // Also reset the interactive crop area to a safe default
-      setCropArea({ x: 10, y: 10, width: 80, height: 80 });
-    }
-  }, [activeTab]);
-
-  // Global mouse event listeners for crop interaction
-  useEffect(() => {
-    if (activeTab !== 'crop') return;
-
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        handleCropMouseMove(e);
-      }
-    };
-
-    const handleGlobalMouseUp = () => {
-      if (isDragging) {
-        handleCropMouseUp();
-      }
-    };
-
-    document.addEventListener('mousemove', handleGlobalMouseMove);
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, [activeTab, isDragging]);
-
-  // Keyboard shortcuts for crop
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTab !== 'crop') return;
-      
-      const step = e.shiftKey ? 5 : 1; // Larger step with Shift
-      
-      switch (e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
-          setCropArea(prev => ({
-            ...prev,
-            x: Math.max(0, Math.min(100 - prev.width, prev.x - step))
-          }));
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          setCropArea(prev => ({
-            ...prev,
-            x: Math.max(0, Math.min(100 - prev.width, prev.x + step))
-          }));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setCropArea(prev => ({
-            ...prev,
-            y: Math.max(0, Math.min(100 - prev.height, prev.y - step))
-          }));
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          setCropArea(prev => ({
-            ...prev,
-            y: Math.max(0, Math.min(100 - prev.height, prev.y + step))
-          }));
-          break;
-        case 'Escape':
-          setCropArea({ x: 10, y: 10, width: 80, height: 80 });
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab]);
 
   // Reset all editor settings
   const resetAdjustments = () => {
     // Reset image adjustments
-    setAdjustments({
+    const defaultAdjustments = {
       brightness: 100,
       contrast: 100,
       saturation: 100,
       blur: 0,
       sharpen: 0,
       gamma: 100,
-    });
+    };
+    setAdjustments(defaultAdjustments);
+    onAdjustmentsChange?.(defaultAdjustments);
     
     // Reset filters and transformations
     setSelectedFilter('none');
-    setZoom(1);
-    
-    // Reset crop settings
-    setCropArea({ x: 10, y: 10, width: 80, height: 80 });
-    setCrop({ x: 0, y: 0 });
-    setCroppedAreaPixels(null);
+    onFilterChange?.('none');
+    onZoomChange?.(1);
+    onImagePositionChange?.({ x: 0, y: 0 });
     
     // Reset text overlays
     setTextOverlays([]);
+    onTextOverlaysChange?.([]);
     setSelectedTextId(null);
+    
+    // Reset crop
+    setCropArea(null);
+    onCropChange?.(null);
+    
+    // Reset crop mode and dragging state
+    setCropMode('select');
+    setIsDraggingCrop(false);
+    setResizeHandle(null);
     
     // Reset text settings
     setTextSettings({
@@ -759,6 +847,27 @@ export default function EnhancedImageEditor({
       shadowOffsetX: 2,
       shadowOffsetY: 2,
     });
+    
+    // Reset to original image (remove all edits)
+    if (imageSrc) {
+      setCurrentImage(imageSrc);
+      setProcessedImage(null);
+      // Call parent's reset callback to restore original image
+      onReset?.();
+    }
+    
+    // Update live preview after reset
+    updateLivePreview();
+    
+    // Show success toast
+    toast({
+      title: "Settings Reset",
+      description: "All image settings have been reset to default values.",
+      duration: 3000,
+    });
+    
+    // Call the reset callback to update parent component state
+    onReset?.();
   };
 
   if (!currentImage) {
@@ -793,402 +902,315 @@ export default function EnhancedImageEditor({
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden p-0">
-        <div className="flex h-full">
+        <div className="flex h-full max-h-[95vh] flex-col lg:flex-row">
           {/* Main Editor Area */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b bg-white">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5" />
-                <h2 className="text-lg font-semibold">Enhanced Image Editor</h2>
-                <Badge variant="secondary">{mousepadSize}</Badge>
-              </div>
+            <div className="flex items-center justify-between p-4 border-b bg-white flex-shrink-0">
+                              <div className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" />
+                  <h2 className="text-lg font-semibold">Enhanced Image Editor</h2>
+                  <Badge variant="secondary">{mousepadSize}</Badge>
+                  {enableLivePreview && (
+                    <Badge variant="outline" className="text-xs">
+                      <Eye className="h-3 w-3 mr-1" />
+                      Preview Only
+                    </Badge>
+                  )}
+                </div>
               
               <div className="flex items-center gap-2">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" onClick={resetAdjustments}>
-                        Reset
+                      <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
+                        Reset All
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Reset all editor settings (adjustments, crop, text, etc.)</TooltipContent>
+                    <TooltipContent>Reset all settings: zoom, position, filters, adjustments, crop, and text overlays</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <Button onClick={handleSave} disabled={isProcessing}>
-                  {isProcessing ? 'Processing...' : 'Apply Changes'}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button onClick={handleSave} disabled={isProcessing}>
+                        {isProcessing ? 'Processing...' : 'Apply & Save'}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Apply all changes to the main customizer and save as new base image</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
 
             {/* Editor Content */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden min-h-0 flex-col lg:flex-row">
               {/* Image Preview */}
-              <div className="flex-1 p-4 bg-gray-50 overflow-auto">
+              <div className="flex-1 p-4 bg-gray-50 overflow-auto min-h-0">
                 <div className="flex items-center justify-center h-full">
                   <div className="relative max-w-full max-h-full">
-                                         {activeTab === 'crop' ? (
-                       <div className="relative w-full h-[500px] bg-black rounded-lg overflow-hidden">
-                         {currentImage ? (
-                           <>
-                                                           {/* Enhanced Interactive crop mode */}
-                                <div 
-                                  ref={imageContainerRef}
-                                  className="relative w-full h-full flex items-center justify-center cursor-crosshair select-none"
-                                  onMouseMove={handleCropMouseMove}
-                                  onMouseUp={handleCropMouseUp}
-                                  onMouseLeave={handleCropMouseUp}
-                                >
-                                  <div className="relative">
-                                    <img
-                                      ref={imageRef}
-                                      src={currentImage}
-                                      alt="Crop preview"
-                                      className="max-w-full max-h-full object-contain"
-                                      style={{
-                                        transform: `scale(${zoom})`,
-                                      }}
-                                      onLoad={calculateImageBounds}
-                                    />
-                                    
-                                    {/* Dark overlay outside crop area */}
-                                    <div className="absolute inset-0 bg-black bg-opacity-60" />
-                                    
-                                    {/* Crop area (transparent) */}
-                                    <div
-                                      className="crop-area absolute border-2 border-white border-dashed cursor-move"
-                                      style={{
-                                        left: `${cropArea.x}%`,
-                                        top: `${cropArea.y}%`,
-                                        width: `${cropArea.width}%`,
-                                        height: `${cropArea.height}%`,
-                                        backgroundColor: 'transparent',
-                                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)',
-                                      }}
-                                      onMouseDown={handleCropMouseDown}
-                                    >
-                                      {/* Grid lines inside crop area */}
-                                      <div className="absolute inset-0 pointer-events-none">
-                                        <div className="absolute top-1/3 left-0 right-0 border-t border-white border-opacity-40"></div>
-                                        <div className="absolute top-2/3 left-0 right-0 border-t border-white border-opacity-40"></div>
-                                        <div className="absolute left-1/3 top-0 bottom-0 border-l border-white border-opacity-40"></div>
-                                        <div className="absolute left-2/3 top-0 bottom-0 border-l border-white border-opacity-40"></div>
-                                      </div>
-                                      
-                                      {/* Corner resize handles */}
-                                      <div 
-                                        className="crop-handle absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-blue-500 cursor-nw-resize rounded-sm hover:bg-blue-50"
-                                        data-handle="nw"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      <div 
-                                        className="crop-handle absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 cursor-ne-resize rounded-sm hover:bg-blue-50"
-                                        data-handle="ne"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      <div 
-                                        className="crop-handle absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-blue-500 cursor-sw-resize rounded-sm hover:bg-blue-50"
-                                        data-handle="sw"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      <div 
-                                        className="crop-handle absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 cursor-se-resize rounded-sm hover:bg-blue-50"
-                                        data-handle="se"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      
-                                      {/* Edge resize handles */}
-                                      <div 
-                                        className="crop-handle absolute top-1/2 -left-2 w-4 h-4 bg-white border-2 border-blue-500 cursor-w-resize rounded-sm hover:bg-blue-50 transform -translate-y-1/2"
-                                        data-handle="w"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      <div 
-                                        className="crop-handle absolute top-1/2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 cursor-e-resize rounded-sm hover:bg-blue-50 transform -translate-y-1/2"
-                                        data-handle="e"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      <div 
-                                        className="crop-handle absolute -top-2 left-1/2 w-4 h-4 bg-white border-2 border-blue-500 cursor-n-resize rounded-sm hover:bg-blue-50 transform -translate-x-1/2"
-                                        data-handle="n"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      <div 
-                                        className="crop-handle absolute -bottom-2 left-1/2 w-4 h-4 bg-white border-2 border-blue-500 cursor-s-resize rounded-sm hover:bg-blue-50 transform -translate-x-1/2"
-                                        data-handle="s"
-                                        onMouseDown={handleCropMouseDown}
-                                      />
-                                      
-                                      {/* Crop info overlay */}
-                                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                                        {Math.round(cropArea.width)}% × {Math.round(cropArea.height)}%
-                                      </div>
-                                    </div>
+                    <div className="relative w-full h-[500px] bg-black rounded-lg overflow-hidden">
+                      {currentImage ? (
+                        <>
+                                                     {/* Image container */}
+                                                     <div 
+                            ref={imageContainerRef}
+                            className="relative w-full h-full flex items-center justify-center select-none"
+                            onMouseMove={handleCropMouseMove}
+                            onMouseUp={handleCropMouseUp}
+                          >
+                            <div className="relative">
+                                                             <img
+                                 ref={imageRef}
+                                 src={processedImage || currentImage}
+                                 alt="Image preview"
+                                 className="max-w-full max-h-full object-contain"
+                                 style={{
+                                   transform: `scale(${zoom}) translate(${imagePosition.x}%, ${imagePosition.y}%)`,
+                                 }}
+                               />
+                              
+                                                             {/* Text Overlays Preview */}
+                               {textOverlays.map((text) => (
+                                 <div
+                                   key={text.id}
+                                   className={`absolute cursor-move ${
+                                     selectedTextId === text.id ? 'ring-2 ring-blue-500' : ''
+                                   }`}
+                                   style={{
+                                     left: `${text.x}%`,
+                                     top: `${text.y}%`,
+                                     transform: `translate(-50%, -50%) rotate(${text.rotation}deg)`,
+                                     opacity: text.opacity / 100,
+                                   }}
+                                   onMouseDown={(e) => handleTextMouseDown(e, text.id)}
+                                   onClick={() => setSelectedTextId(text.id)}
+                                 >
+                                  <div
+                                    style={{
+                                      fontFamily: text.fontFamily,
+                                      fontSize: `${text.fontSize}px`,
+                                      color: text.color,
+                                      fontWeight: text.bold ? 'bold' : 'normal',
+                                      fontStyle: text.italic ? 'italic' : 'normal',
+                                      textShadow: text.shadow
+                                        ? `${text.shadowOffsetX}px ${text.shadowOffsetY}px ${text.shadowBlur}px ${text.shadowColor}`
+                                        : 'none',
+                                    }}
+                                  >
+                                    {text.text}
                                   </div>
                                 </div>
-                             ) : (
-                               // Advanced crop mode with react-easy-crop
-                               <div className="w-full h-full bg-black flex items-center justify-center">
-                                 <Cropper
-                                   image={currentImage}
-                                   crop={crop}
-                                   zoom={zoom}
-                                   aspect={aspectRatio}
-                                   onCropChange={setCrop}
-                                   onZoomChange={setZoom}
-                                   onCropComplete={onCropComplete}
-                                   cropShape="rect"
-                                   showGrid={true}
-                                   restrictPosition={true}
-                                   style={{
-                                     containerStyle: {
-                                       width: '100%',
-                                       height: '100%',
-                                       backgroundColor: '#000',
-                                     },
-                                     cropAreaStyle: {
-                                       border: '2px solid #fff',
-                                       color: 'rgba(255, 255, 255, 0.5)',
-                                     },
-                                     mediaStyle: {
-                                       width: '100%',
-                                       height: '100%',
-                                       objectFit: 'contain',
-                                     },
-                                   }}
-                                 />
-                               </div>
-                             )&rbrace;
-                             
-                             {/* Debug info */}
-                             <div className="absolute top-2 right-2 bg-black bg-opacity-50 rounded p-2 text-white text-xs">
-                               <div>Mode: Interactive</div>
-                               <div>Zoom: {Math.round(zoom * 100)}%</div>
-                               <div>Crop: {Math.round(crop.x)}, {Math.round(crop.y)}</div>
-                             </div>
-                           </>
-                         ) : (
-                           <div className="flex items-center justify-center h-full text-white">
-                             <div className="text-center">
-                               <ImageIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                               <p>No image loaded</p>
-                             </div>
-                           </div>
-                         )}
-                       </div>
-                    ) : (
-                      <div className="relative">
-                        <img
-                          src={currentImage}
-                          alt="Preview"
-                          className="max-w-full max-h-96 object-contain rounded-lg shadow-lg"
-                          style={{
-                            filter: `
-                              brightness(${adjustments.brightness}%)
-                              contrast(${adjustments.contrast}%)
-                              saturate(${adjustments.saturation}%)
-                              blur(${adjustments.blur}px)
-                              ${selectedFilter !== 'none' ? selectedFilter : ''}
-                            `,
-                          }}
-                        />
-                        
-                        {/* Text Overlays Preview */}
-                        {textOverlays.map((text) => (
-                          <div
-                            key={text.id}
-                            className={`absolute cursor-move ${
-                              selectedTextId === text.id ? 'ring-2 ring-blue-500' : ''
-                            }`}
-                            style={{
-                              left: `${text.x}%`,
-                              top: `${text.y}%`,
-                              transform: `translate(-50%, -50%) rotate(${text.rotation}deg)`,
-                              opacity: text.opacity / 100,
-                            }}
-                            onClick={() => setSelectedTextId(text.id)}
-                          >
-                            <div
-                              style={{
-                                fontFamily: text.fontFamily,
-                                fontSize: `${text.fontSize}px`,
-                                color: text.color,
-                                fontWeight: text.bold ? 'bold' : 'normal',
-                                fontStyle: text.italic ? 'italic' : 'normal',
-                                textShadow: text.shadow
-                                  ? `${text.shadowOffsetX}px ${text.shadowOffsetY}px ${text.shadowBlur}px ${text.shadowColor}`
-                                  : 'none',
-                              }}
-                            >
-                              {text.text}
+                              ))}
                             </div>
+                            
+                            {/* Crop Overlay */}
+                            {activeTab === 'crop' && cropArea && (
+                              <div className="absolute inset-0">
+                                {/* Crop selection rectangle */}
+                                <div
+                                  className="absolute border-2 border-blue-500 bg-blue-500 bg-opacity-20 cursor-move"
+                                  style={{
+                                    left: `${cropArea.x}%`,
+                                    top: `${cropArea.y}%`,
+                                    width: `${cropArea.width}%`,
+                                    height: `${cropArea.height}%`,
+                                  }}
+                                  onMouseDown={(e) => handleCropMouseDown(e)}
+                                />
+                                
+                                {/* Resize handles */}
+                                {cropArea && (
+                                  <>
+                                    {/* Corner handles */}
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-nw-resize"
+                                      style={{
+                                        left: `${cropArea.x - 1.5}%`,
+                                        top: `${cropArea.y - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'nw')}
+                                    />
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-ne-resize"
+                                      style={{
+                                        left: `${cropArea.x + cropArea.width - 1.5}%`,
+                                        top: `${cropArea.y - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'ne')}
+                                    />
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-sw-resize"
+                                      style={{
+                                        left: `${cropArea.x - 1.5}%`,
+                                        top: `${cropArea.y + cropArea.height - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'sw')}
+                                    />
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-se-resize"
+                                      style={{
+                                        left: `${cropArea.x + cropArea.width - 1.5}%`,
+                                        top: `${cropArea.y + cropArea.height - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'se')}
+                                    />
+                                    
+                                    {/* Edge handles */}
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-n-resize"
+                                      style={{
+                                        left: `${cropArea.x + cropArea.width / 2 - 1.5}%`,
+                                        top: `${cropArea.y - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'n')}
+                                    />
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-s-resize"
+                                      style={{
+                                        left: `${cropArea.x + cropArea.width / 2 - 1.5}%`,
+                                        top: `${cropArea.y + cropArea.height - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 's')}
+                                    />
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-w-resize"
+                                      style={{
+                                        left: `${cropArea.x - 1.5}%`,
+                                        top: `${cropArea.y + cropArea.height / 2 - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'w')}
+                                    />
+                                    <div
+                                      className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-e-resize"
+                                      style={{
+                                        left: `${cropArea.x + cropArea.width - 1.5}%`,
+                                        top: `${cropArea.y + cropArea.height / 2 - 1.5}%`,
+                                      }}
+                                      onMouseDown={(e) => handleCropMouseDown(e, 'e')}
+                                    />
+                                  </>
+                                )}
+                                
+                                {/* Crop instructions */}
+                                <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {cropMode === 'move' ? 'Drag to move crop area' : 
+                                   cropMode === 'resize' ? 'Drag handles to resize' : 
+                                   'Click Start Crop to begin'}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          
+                          {/* Debug info */}
+                          <div className="absolute top-2 right-2 bg-black bg-opacity-50 rounded p-2 text-white text-xs">
+                            <div>Zoom: {Math.round(zoom * 100)}%</div>
+                            <div>Position: {Math.round(imagePosition.x)}, {Math.round(imagePosition.y)}</div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-white">
+                          <div className="text-center">
+                            <ImageIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                            <p>No image loaded</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Controls Panel */}
-              <div className="w-80 border-l bg-white overflow-y-auto">
+              <div className="w-full lg:w-80 border-t lg:border-l lg:border-t-0 bg-white overflow-y-auto flex-shrink-0">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
                   <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="crop" className="text-xs">
-                      <Crop className="h-3 w-3" />
-                    </TabsTrigger>
                     <TabsTrigger value="adjust" className="text-xs">
                       <Settings className="h-3 w-3" />
                     </TabsTrigger>
                     <TabsTrigger value="filters" className="text-xs">
                       <Filter className="h-3 w-3" />
                     </TabsTrigger>
+                    <TabsTrigger value="crop" className="text-xs">
+                      <Crop className="h-3 w-3" />
+                    </TabsTrigger>
                     <TabsTrigger value="text" className="text-xs">
                       <Type className="h-3 w-3" />
                     </TabsTrigger>
                   </TabsList>
 
-                  <div className="p-4 space-y-4">
-                                         {/* Crop Tab */}
-                     <TabsContent value="crop" className="space-y-4">
-                       <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                         💡 <strong>Tips:</strong> Drag to move, use handles to resize, arrow keys for fine control, Shift+arrows for larger steps
-                       </div>
-                       
-                       <div className="space-y-2">
-                         <Label className="text-sm font-medium">Crop Area</Label>
-                         <div className="grid grid-cols-2 gap-2 text-xs">
-                           <div>
-                             <span className="text-gray-500">X: {Math.round(cropArea.x)}%</span>
-                             <Slider
-                               value={[cropArea.x]}
-                               onValueChange={([value]) => setCropArea(prev => ({ 
-                                 ...prev, 
-                                 x: Math.max(0, Math.min(100 - prev.width, value)) 
-                               }))}
-                               min={0}
-                               max={Math.max(0, 100 - cropArea.width)}
-                               step={1}
-                               className="mt-1"
-                             />
-                           </div>
-                           <div>
-                             <span className="text-gray-500">Y: {Math.round(cropArea.y)}%</span>
-                             <Slider
-                               value={[cropArea.y]}
-                               onValueChange={([value]) => setCropArea(prev => ({ 
-                                 ...prev, 
-                                 y: Math.max(0, Math.min(100 - prev.height, value)) 
-                               }))}
-                               min={0}
-                               max={Math.max(0, 100 - cropArea.height)}
-                               step={1}
-                               className="mt-1"
-                             />
-                           </div>
-                           <div>
-                             <span className="text-gray-500">Width: {Math.round(cropArea.width)}%</span>
-                             <Slider
-                               value={[cropArea.width]}
-                               onValueChange={([value]) => setCropArea(prev => ({ 
-                                 ...prev, 
-                                 width: Math.max(20, Math.min(100 - prev.x, value)) 
-                               }))}
-                               min={20}
-                               max={Math.max(20, 100 - cropArea.x)}
-                               step={1}
-                               className="mt-1"
-                             />
-                           </div>
-                           <div>
-                             <span className="text-gray-500">Height: {Math.round(cropArea.height)}%</span>
-                             <Slider
-                               value={[cropArea.height]}
-                               onValueChange={([value]) => setCropArea(prev => ({ 
-                                 ...prev, 
-                                 height: Math.max(20, Math.min(100 - prev.y, value)) 
-                               }))}
-                               min={20}
-                               max={Math.max(20, 100 - cropArea.y)}
-                               step={1}
-                               className="mt-1"
-                             />
-                           </div>
-                         </div>
-                       </div>
-                       
-                       <div className="space-y-2">
-                         <Label className="text-sm font-medium">Quick Presets</Label>
-                         <div className="grid grid-cols-2 gap-2">
-                           <Button
-                             variant="outline"
-                             size="sm"
-                             onClick={() => setCropArea({ x: 10, y: 10, width: 80, height: 80 })}
-                             className="text-xs"
-                           >
-                             Center
-                           </Button>
-                           <Button
-                             variant="outline"
-                             size="sm"
-                             onClick={() => setCropArea({ x: 0, y: 0, width: 100, height: 100 })}
-                             className="text-xs"
-                           >
-                             Full Image
-                           </Button>
-                           <Button
-                             variant="outline"
-                             size="sm"
-                             onClick={() => setCropArea({ x: 0, y: 0, width: 50, height: 100 })}
-                             className="text-xs"
-                           >
-                             Left Half
-                           </Button>
-                           <Button
-                             variant="outline"
-                             size="sm"
-                             onClick={() => setCropArea({ x: 50, y: 0, width: 50, height: 100 })}
-                             className="text-xs"
-                           >
-                             Right Half
-                           </Button>
-                         </div>
-                       </div>
-                       
-                       <div>
-                         <Label className="text-sm font-medium">Zoom</Label>
-                         <Slider
-                           value={[zoom]}
-                           onValueChange={([value]) => setZoom(value)}
-                           min={1}
-                           max={3}
-                           step={0.01}
-                           className="mt-2"
-                         />
-                         <div className="flex justify-between text-xs text-gray-500 mt-1">
-                           <span>100%</span>
-                           <span>{Math.round(zoom * 100)}%</span>
-                           <span>300%</span>
-                         </div>
-                       </div>
-
-                      <Button onClick={handleCrop} className="w-full" disabled={isProcessing}>
-                        {isProcessing ? 'Processing...' : 'Apply Crop'}
-                      </Button>
-                    </TabsContent>
-
+                  <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(95vh-200px)]">
                     {/* Adjustments Tab */}
                     <TabsContent value="adjust" className="space-y-4">
+                      <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                        💡 <strong>Preview Mode:</strong> Changes are only shown in this editor. Click "Apply & Save" to apply to main customizer.
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium">Zoom</Label>
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            value={[zoom]}
+                            onValueChange={([value]) => {
+                              onZoomChange?.(value);
+                              updateLivePreview();
+                            }}
+                            min={0.1}
+                            max={3}
+                            step={0.01}
+                            className="flex-1 mt-2"
+                          />
+                          <Input
+                            type="number"
+                            value={Math.round(zoom * 100)}
+                            onChange={(e) => {
+                              const value = Math.max(10, Math.min(300, parseInt(e.target.value) || 100));
+                              onZoomChange?.(value / 100);
+                              updateLivePreview();
+                            }}
+                            min={10}
+                            max={300}
+                            className="w-16 h-8 text-xs"
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>10%</span>
+                          <span>{Math.round(zoom * 100)}%</span>
+                          <span>300%</span>
+                        </div>
+                      </div>
+
                       <div>
                         <Label className="text-sm font-medium">Brightness</Label>
-                        <Slider
-                          value={[adjustments.brightness]}
-                          onValueChange={([value]) => setAdjustments(prev => ({ ...prev, brightness: value }))}
-                          min={0}
-                          max={200}
-                          step={1}
-                          className="mt-2"
-                        />
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            value={[adjustments.brightness]}
+                            onValueChange={([value]) => {
+                              const newAdjustments = { ...adjustments, brightness: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={200}
+                            step={1}
+                            className="flex-1 mt-2"
+                          />
+                          <Input
+                            type="number"
+                            value={adjustments.brightness}
+                            onChange={(e) => {
+                              const value = Math.max(0, Math.min(200, parseInt(e.target.value) || 100));
+                              const newAdjustments = { ...adjustments, brightness: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={200}
+                            className="w-16 h-8 text-xs"
+                          />
+                        </div>
                         <div className="flex justify-between text-xs text-gray-500 mt-1">
                           <span>0%</span>
                           <span>{adjustments.brightness}%</span>
@@ -1198,14 +1220,35 @@ export default function EnhancedImageEditor({
 
                       <div>
                         <Label className="text-sm font-medium">Contrast</Label>
-                        <Slider
-                          value={[adjustments.contrast]}
-                          onValueChange={([value]) => setAdjustments(prev => ({ ...prev, contrast: value }))}
-                          min={0}
-                          max={200}
-                          step={1}
-                          className="mt-2"
-                        />
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            value={[adjustments.contrast]}
+                            onValueChange={([value]) => {
+                              const newAdjustments = { ...adjustments, contrast: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={200}
+                            step={1}
+                            className="flex-1 mt-2"
+                          />
+                          <Input
+                            type="number"
+                            value={adjustments.contrast}
+                            onChange={(e) => {
+                              const value = Math.max(0, Math.min(200, parseInt(e.target.value) || 100));
+                              const newAdjustments = { ...adjustments, contrast: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={200}
+                            className="w-16 h-8 text-xs"
+                          />
+                        </div>
                         <div className="flex justify-between text-xs text-gray-500 mt-1">
                           <span>0%</span>
                           <span>{adjustments.contrast}%</span>
@@ -1215,14 +1258,35 @@ export default function EnhancedImageEditor({
 
                       <div>
                         <Label className="text-sm font-medium">Saturation</Label>
-                        <Slider
-                          value={[adjustments.saturation]}
-                          onValueChange={([value]) => setAdjustments(prev => ({ ...prev, saturation: value }))}
-                          min={0}
-                          max={200}
-                          step={1}
-                          className="mt-2"
-                        />
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            value={[adjustments.saturation]}
+                            onValueChange={([value]) => {
+                              const newAdjustments = { ...adjustments, saturation: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={200}
+                            step={1}
+                            className="flex-1 mt-2"
+                          />
+                          <Input
+                            type="number"
+                            value={adjustments.saturation}
+                            onChange={(e) => {
+                              const value = Math.max(0, Math.min(200, parseInt(e.target.value) || 100));
+                              const newAdjustments = { ...adjustments, saturation: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={200}
+                            className="w-16 h-8 text-xs"
+                          />
+                        </div>
                         <div className="flex justify-between text-xs text-gray-500 mt-1">
                           <span>0%</span>
                           <span>{adjustments.saturation}%</span>
@@ -1232,14 +1296,36 @@ export default function EnhancedImageEditor({
 
                       <div>
                         <Label className="text-sm font-medium">Blur</Label>
-                        <Slider
-                          value={[adjustments.blur]}
-                          onValueChange={([value]) => setAdjustments(prev => ({ ...prev, blur: value }))}
-                          min={0}
-                          max={10}
-                          step={0.1}
-                          className="mt-2"
-                        />
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            value={[adjustments.blur]}
+                            onValueChange={([value]) => {
+                              const newAdjustments = { ...adjustments, blur: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.1}
+                            className="flex-1 mt-2"
+                          />
+                          <Input
+                            type="number"
+                            value={adjustments.blur}
+                            onChange={(e) => {
+                              const value = Math.max(0, Math.min(10, parseFloat(e.target.value) || 0));
+                              const newAdjustments = { ...adjustments, blur: value };
+                              setAdjustments(newAdjustments);
+                              onAdjustmentsChange?.(newAdjustments);
+                              updateLivePreview();
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.1}
+                            className="w-16 h-8 text-xs"
+                          />
+                        </div>
                         <div className="flex justify-between text-xs text-gray-500 mt-1">
                           <span>0px</span>
                           <span>{adjustments.blur}px</span>
@@ -1256,13 +1342,74 @@ export default function EnhancedImageEditor({
                             key={filter.name}
                             variant={selectedFilter === filter.value ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setSelectedFilter(filter.value)}
+                                                         onClick={() => {
+                               setSelectedFilter(filter.value);
+                               onFilterChange?.(filter.value);
+                               updateLivePreview();
+                             }}
                             className="h-16 flex flex-col items-center justify-center text-xs"
                           >
                             <div className="w-8 h-8 bg-gray-200 rounded mb-1" />
                             {filter.name}
                           </Button>
                         ))}
+                      </div>
+                    </TabsContent>
+
+                    {/* Crop Tab */}
+                    <TabsContent value="crop" className="space-y-4">
+                      <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                        💡 <strong>Crop Tool:</strong> Use the 8 handles to resize and move the crop area
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Crop Image</Label>
+                          <div className="flex gap-2">
+                            {!cropArea && (
+                              <Button
+                                size="sm"
+                                onClick={startCrop}
+                                className="text-xs"
+                              >
+                                Start Crop
+                              </Button>
+                            )}
+                            {cropArea && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={resetCrop}
+                                  className="text-xs"
+                                >
+                                  Reset
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={handleApplyCrop}
+                                  className="text-xs"
+                                >
+                                  Apply Crop
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="text-xs text-gray-600 space-y-1">
+                          <p>• Click "Start Crop" to begin</p>
+                          <p>• Drag the 8 handles to resize</p>
+                          <p>• Drag inside the area to move</p>
+                          <p>• Click "Apply Crop" to confirm</p>
+                        </div>
+                        
+                        {cropArea && (
+                          <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                            <div>Crop Area: {Math.round(cropArea.x)}%, {Math.round(cropArea.y)}%</div>
+                            <div>Size: {Math.round(cropArea.width)}% × {Math.round(cropArea.height)}%</div>
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
 
@@ -1289,16 +1436,35 @@ export default function EnhancedImageEditor({
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-sm truncate">{text.text}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeTextOverlay(text.id);
-                                  }}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            editTextOverlay(text.id);
+                                          }}
+                                        >
+                                          <Type className="h-3 w-3" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Edit text content</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeTextOverlay(text.id);
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -1310,15 +1476,43 @@ export default function EnhancedImageEditor({
                           <Label className="text-sm font-medium">Text Properties</Label>
                           
                           <div>
-                            <Label className="text-xs">Font Size</Label>
-                            <Slider
-                              value={[textOverlays.find(t => t.id === selectedTextId)?.fontSize || 24]}
-                              onValueChange={([value]) => updateTextOverlay(selectedTextId, { fontSize: value })}
-                              min={8}
-                              max={72}
-                              step={1}
-                              className="mt-1"
+                            <Label className="text-xs">Text Content</Label>
+                            <Input
+                              value={textOverlays.find(t => t.id === selectedTextId)?.text || ''}
+                              onChange={(e) => updateTextOverlay(selectedTextId, { text: e.target.value })}
+                              placeholder="Enter text..."
+                              className="h-8"
                             />
+                          </div>
+
+                          <div>
+                            <Label className="text-xs">Font Size</Label>
+                            <div className="flex items-center gap-2">
+                              <Slider
+                                value={[textOverlays.find(t => t.id === selectedTextId)?.fontSize || 24]}
+                                onValueChange={([value]) => updateTextOverlay(selectedTextId, { fontSize: value })}
+                                min={8}
+                                max={72}
+                                step={1}
+                                className="flex-1 mt-1"
+                              />
+                              <Input
+                                type="number"
+                                value={textOverlays.find(t => t.id === selectedTextId)?.fontSize || 24}
+                                onChange={(e) => {
+                                  const value = Math.max(8, Math.min(72, parseInt(e.target.value) || 24));
+                                  updateTextOverlay(selectedTextId, { fontSize: value });
+                                }}
+                                min={8}
+                                max={72}
+                                className="w-12 h-6 text-xs"
+                              />
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>8px</span>
+                              <span>{textOverlays.find(t => t.id === selectedTextId)?.fontSize || 24}px</span>
+                              <span>72px</span>
+                            </div>
                           </div>
 
                           <div>
@@ -1341,13 +1535,81 @@ export default function EnhancedImageEditor({
                           </div>
 
                           <div>
-                            <Label className="text-xs">Color</Label>
-                            <Input
-                              type="color"
-                              value={textOverlays.find(t => t.id === selectedTextId)?.color || '#000000'}
-                              onChange={(e) => updateTextOverlay(selectedTextId, { color: e.target.value })}
-                              className="h-8"
-                            />
+                            <Label className="text-xs">Text Color</Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="color"
+                                value={textOverlays.find(t => t.id === selectedTextId)?.color || '#000000'}
+                                onChange={(e) => updateTextOverlay(selectedTextId, { color: e.target.value })}
+                                className="h-8 w-12"
+                              />
+                              <Input
+                                value={textOverlays.find(t => t.id === selectedTextId)?.color || '#000000'}
+                                onChange={(e) => updateTextOverlay(selectedTextId, { color: e.target.value })}
+                                placeholder="#000000"
+                                className="h-8 flex-1"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs">Opacity</Label>
+                            <div className="flex items-center gap-2">
+                              <Slider
+                                value={[textOverlays.find(t => t.id === selectedTextId)?.opacity || 100]}
+                                onValueChange={([value]) => updateTextOverlay(selectedTextId, { opacity: value })}
+                                min={0}
+                                max={100}
+                                step={1}
+                                className="flex-1 mt-1"
+                              />
+                              <Input
+                                type="number"
+                                value={textOverlays.find(t => t.id === selectedTextId)?.opacity || 100}
+                                onChange={(e) => {
+                                  const value = Math.max(0, Math.min(100, parseInt(e.target.value) || 100));
+                                  updateTextOverlay(selectedTextId, { opacity: value });
+                                }}
+                                min={0}
+                                max={100}
+                                className="w-12 h-6 text-xs"
+                              />
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>0%</span>
+                              <span>{textOverlays.find(t => t.id === selectedTextId)?.opacity || 100}%</span>
+                              <span>100%</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs">Rotation</Label>
+                            <div className="flex items-center gap-2">
+                              <Slider
+                                value={[textOverlays.find(t => t.id === selectedTextId)?.rotation || 0]}
+                                onValueChange={([value]) => updateTextOverlay(selectedTextId, { rotation: value })}
+                                min={-180}
+                                max={180}
+                                step={1}
+                                className="flex-1 mt-1"
+                              />
+                              <Input
+                                type="number"
+                                value={textOverlays.find(t => t.id === selectedTextId)?.rotation || 0}
+                                onChange={(e) => {
+                                  const value = Math.max(-180, Math.min(180, parseInt(e.target.value) || 0));
+                                  updateTextOverlay(selectedTextId, { rotation: value });
+                                }}
+                                min={-180}
+                                max={180}
+                                className="w-12 h-6 text-xs"
+                              />
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>-180°</span>
+                              <span>{textOverlays.find(t => t.id === selectedTextId)?.rotation || 0}°</span>
+                              <span>180°</span>
+                            </div>
                           </div>
 
                           <div className="flex items-center space-x-2">
@@ -1360,11 +1622,65 @@ export default function EnhancedImageEditor({
 
                           <div className="flex items-center space-x-2">
                             <Switch
+                              checked={textOverlays.find(t => t.id === selectedTextId)?.italic || false}
+                              onCheckedChange={(checked) => updateTextOverlay(selectedTextId, { italic: checked })}
+                            />
+                            <Label className="text-xs">Italic</Label>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <Switch
                               checked={textOverlays.find(t => t.id === selectedTextId)?.shadow || false}
                               onCheckedChange={(checked) => updateTextOverlay(selectedTextId, { shadow: checked })}
                             />
                             <Label className="text-xs">Shadow</Label>
                           </div>
+
+                          {textOverlays.find(t => t.id === selectedTextId)?.shadow && (
+                            <div className="space-y-2 pl-4 border-l-2 border-gray-200">
+                              <div>
+                                <Label className="text-xs">Shadow Color</Label>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="color"
+                                    value={textOverlays.find(t => t.id === selectedTextId)?.shadowColor || '#000000'}
+                                    onChange={(e) => updateTextOverlay(selectedTextId, { shadowColor: e.target.value })}
+                                    className="h-6 w-8"
+                                  />
+                                  <Input
+                                    value={textOverlays.find(t => t.id === selectedTextId)?.shadowColor || '#000000'}
+                                    onChange={(e) => updateTextOverlay(selectedTextId, { shadowColor: e.target.value })}
+                                    className="h-6 flex-1"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <Label className="text-xs">Shadow Blur</Label>
+                                <div className="flex items-center gap-2">
+                                  <Slider
+                                    value={[textOverlays.find(t => t.id === selectedTextId)?.shadowBlur || 4]}
+                                    onValueChange={([value]) => updateTextOverlay(selectedTextId, { shadowBlur: value })}
+                                    min={0}
+                                    max={20}
+                                    step={1}
+                                    className="flex-1 mt-1"
+                                  />
+                                  <Input
+                                    type="number"
+                                    value={textOverlays.find(t => t.id === selectedTextId)?.shadowBlur || 4}
+                                    onChange={(e) => {
+                                      const value = Math.max(0, Math.min(20, parseInt(e.target.value) || 4));
+                                      updateTextOverlay(selectedTextId, { shadowBlur: value });
+                                    }}
+                                    min={0}
+                                    max={20}
+                                    className="w-12 h-6 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </TabsContent>
@@ -1379,7 +1695,7 @@ export default function EnhancedImageEditor({
         <Dialog open={showTextEditor} onOpenChange={setShowTextEditor}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Text Overlay</DialogTitle>
+              <DialogTitle>{editingTextId ? 'Edit Text Overlay' : 'Add Text Overlay'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -1406,12 +1722,20 @@ export default function EnhancedImageEditor({
                 
                 <div>
                   <Label>Color</Label>
-                  <Input
-                    type="color"
-                    value={textSettings.color}
-                    onChange={(e) => setTextSettings(prev => ({ ...prev, color: e.target.value }))}
-                    className="h-10"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={textSettings.color}
+                      onChange={(e) => setTextSettings(prev => ({ ...prev, color: e.target.value }))}
+                      className="h-10 w-12"
+                    />
+                    <Input
+                      value={textSettings.color}
+                      onChange={(e) => setTextSettings(prev => ({ ...prev, color: e.target.value }))}
+                      placeholder="#000000"
+                      className="h-10 flex-1"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1461,11 +1785,53 @@ export default function EnhancedImageEditor({
               </div>
 
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowTextEditor(false)}>
+                <Button variant="outline" onClick={() => {
+                  setShowTextEditor(false);
+                  setEditingTextId(null);
+                  setTextInput('');
+                }}>
                   Cancel
                 </Button>
-                <Button onClick={addTextOverlay}>
-                  Add Text
+                <Button onClick={editingTextId ? saveTextEdit : addTextOverlay}>
+                  {editingTextId ? 'Save Changes' : 'Add Text'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Confirmation Dialog */}
+        <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset All Settings</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                This will reset all image settings including:
+              </p>
+              <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                <li>• Zoom and position</li>
+                <li>• All filters and adjustments</li>
+                <li>• Crop area</li>
+                <li>• All text overlays</li>
+                <li>• Return to original image</li>
+              </ul>
+              <p className="text-sm font-medium text-red-600">
+                This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowResetConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    resetAdjustments();
+                    setShowResetConfirm(false);
+                  }}
+                >
+                  Reset All
                 </Button>
               </div>
             </div>

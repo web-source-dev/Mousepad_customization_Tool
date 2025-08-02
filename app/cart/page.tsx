@@ -3,7 +3,7 @@ import { useCart } from "@/components/ui/cart-context";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Plus, Minus } from "lucide-react";
+import { Trash2, Plus, Minus, RotateCcw } from "lucide-react";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -15,7 +15,7 @@ type WixUser = { email: string; id: string } | null;
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeItem, updateItem, clearCart } = useCart();
+  const { items, removeItem, updateItem, clearCart, getItemTotalPrice, getCartSubtotal, regenerateItemImage } = useCart();
   const { toast } = useToast();
   const [clearing, setClearing] = React.useState(false);
   const [checkingOut, setCheckingOut] = React.useState(false);
@@ -70,7 +70,7 @@ export default function CartPage() {
   // Add debugging for button state
   console.log("Cart page state:", { wixUser, items: items.length, checkingOut });
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = getCartSubtotal();
   const shipping = subtotal > 50 ? 0 : 5.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
@@ -134,6 +134,8 @@ export default function CartPage() {
         }
       };
 
+      console.log('Checkout data:', checkoutData);
+
       console.log('Sending complete checkout data to Wix:', {
         orderId: checkoutData.orderId,
         itemCount: checkoutData.items.length,
@@ -187,12 +189,150 @@ export default function CartPage() {
             <Button variant="outline" onClick={handleUserDetailsCancel}>&larr; Back to Cart</Button>
             <h1 className="text-3xl font-bold">Checkout</h1>
           </div>
-          <UserDetailsForm
-            onSubmit={handleUserDetailsSubmit}
-            onCancel={handleUserDetailsCancel}
-            isLoading={checkingOut}
-            initialEmail={wixUser?.email || ''}
-          />
+          
+          {/* Checkout Layout - Show cart items on left if multiple items */}
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Left Side - Cart Items Summary (show if more than 1 item) */}
+            {items.length > 1 && (
+              <div className="space-y-4 w-full">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Order Summary ({items.length} items)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {items.slice(0, 4).map((item) => (
+                        <div key={item.id} className="flex gap-3 p-3 border rounded-lg">
+                          <div className="w-16 h-16 relative flex-shrink-0 overflow-hidden rounded border bg-white">
+                            <Image 
+                              src={item.finalImage || item.image || '/placeholder.svg'} 
+                              alt={item.name} 
+                              fill 
+                              className="object-contain" 
+                              unoptimized
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{item.name}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {item.configuration?.mousepadType === 'rgb' ? 'RGB Gaming' : 'Standard'} • 
+                              {item.configuration?.mousepadSize} • {item.configuration?.thickness}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Qty: {item.quantity} • ${getItemTotalPrice(item).toFixed(2)}
+                            </div>
+                            {/* Show customization highlights */}
+                            {item.configuration?.textElements?.length > 0 && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                ✓ {item.configuration.textElements.length} text element{item.configuration.textElements.length !== 1 ? 's' : ''}
+                              </div>
+                            )}
+                            {item.configuration?.appliedOverlays?.length > 0 && (
+                              <div className="text-xs text-purple-600">
+                                ✓ {item.configuration.appliedOverlays.length} overlay{item.configuration.appliedOverlays.length !== 1 ? 's' : ''}
+                              </div>
+                            )}
+                            {item.configuration?.rgb && (
+                              <div className="text-xs text-green-600">
+                                ✓ RGB {item.configuration.rgb.mode} mode
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Show "and X more" if there are more than 4 items */}
+                      {items.length > 4 && (
+                        <div className="text-center py-2 text-sm text-gray-500 border-t">
+                          and {items.length - 4} more item{items.length - 4 !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                      
+                      {/* Order totals */}
+                      <div className="border-t pt-4 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Subtotal:</span>
+                          <span>${subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Shipping:</span>
+                          <span>{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Tax:</span>
+                          <span>${tax.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                          <span>Total:</span>
+                          <span>${total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            
+            {/* Right Side - Checkout Form */}
+            <div className="w-full">
+              {/* Show compact order summary for single items */}
+              {items.length === 1 && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Order Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-4 p-3 border rounded-lg">
+                      <div className="w-20 h-20 relative flex-shrink-0 overflow-hidden rounded border bg-white">
+                        <Image 
+                          src={items[0].finalImage || items[0].image || '/placeholder.svg'} 
+                          alt={items[0].name} 
+                          fill 
+                          className="object-contain" 
+                          unoptimized
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium">{items[0].name}</div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {items[0].configuration?.mousepadType === 'rgb' ? 'RGB Gaming' : 'Standard'} • 
+                          {items[0].configuration?.mousepadSize} • {items[0].configuration?.thickness}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Qty: {items[0].quantity} • ${getItemTotalPrice(items[0]).toFixed(2)}
+                        </div>
+                        {/* Show customization highlights */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {items[0].configuration?.textElements?.length > 0 && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                              {items[0].configuration.textElements.length} text element{items[0].configuration.textElements.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {items[0].configuration?.appliedOverlays?.length > 0 && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                              {items[0].configuration.appliedOverlays.length} overlay{items[0].configuration.appliedOverlays.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {items[0].configuration?.rgb && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                              RGB {items[0].configuration.rgb.mode} mode
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              <UserDetailsForm
+                onSubmit={handleUserDetailsSubmit}
+                onCancel={handleUserDetailsCancel}
+                isLoading={checkingOut}
+                initialEmail={wixUser?.email || ''}
+              />
+            </div>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col md:flex-row gap-8">
@@ -222,7 +362,7 @@ export default function CartPage() {
                   <div key={item.id} className="flex flex-col sm:flex-row gap-4 items-center border-b pb-6 last:border-b-0 group">
                     <div className="w-24 h-24 relative flex-shrink-0 overflow-hidden rounded-lg border bg-white">
                       <Image 
-                        src={item.image} 
+                        src={item.finalImage || item.image || '/placeholder.svg'} 
                         alt={item.name} 
                         fill 
                         className="object-contain group-hover:scale-105 transition-transform duration-200" 
@@ -272,6 +412,49 @@ export default function CartPage() {
                           );
                         })}
                       </div>
+                      
+                      {/* Configuration details */}
+                      {item.configuration && (
+                        <div className="text-xs text-gray-600 mt-2 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Configuration:</span>
+                            <span>{item.configuration.mousepadType} • {item.configuration.mousepadSize} • {item.configuration.thickness}</span>
+                          </div>
+                          
+                          {item.configuration.rgb && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">RGB:</span>
+                              <span>{item.configuration.rgb.mode} mode • {item.configuration.rgb.brightness}% brightness</span>
+                            </div>
+                          )}
+                          
+                          {(item.configuration.imageSettings?.uploadedImage || item.configuration.selectedTemplate) && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Image:</span>
+                              <span>
+                                {item.configuration.selectedTemplate ? 'Template' : 'Custom Upload'}
+                                {item.configuration.imageSettings?.zoom !== 1 && ` • ${Math.round(item.configuration.imageSettings.zoom * 100)}% zoom`}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {(item.configuration.textElements?.length > 0 || item.configuration.imageTextOverlays?.length > 0) && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Text:</span>
+                              <span>
+                                {item.configuration.imageTextOverlays?.length || item.configuration.textElements?.length} element{(item.configuration.imageTextOverlays?.length || item.configuration.textElements?.length) !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {item.configuration.appliedOverlays?.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Overlays:</span>
+                              <span>{item.configuration.appliedOverlays.length} applied</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 mt-2">
                         <span className="text-sm">Qty:</span>
                         <Button size="icon" variant="outline" aria-label="Decrease quantity" onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })} disabled={item.quantity <= 1}>
@@ -288,8 +471,37 @@ export default function CartPage() {
                         <Button size="icon" variant="outline" aria-label="Increase quantity" onClick={() => updateItem(item.id, { quantity: item.quantity + 1 })}>
                           <Plus className="h-4 w-4" />
                         </Button>
-                        <span className="ml-4 font-semibold">${(item.price * item.quantity).toFixed(2)}</span>
+                        <div className="ml-4 text-right">
+                          <div className="font-semibold">${getItemTotalPrice(item).toFixed(2)}</div>
+                          {item.quantity > 1 && (
+                            <div className="text-xs text-green-600">
+                              Bulk discount applied (10% off)
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      
+                      {/* Regenerate image button if final image is missing */}
+                      {(!item.finalImage || item.finalImage === '/placeholder.svg' || !item.finalImage.startsWith('data:image')) && item.configuration && (
+                        <div className="mt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={async () => {
+                              await regenerateItemImage(item.id);
+                              toast && toast({
+                                title: "Image Regenerated",
+                                description: "The customized image has been regenerated.",
+                                duration: 2000,
+                              });
+                            }}
+                            className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Regenerate Image
+                          </Button>
+                        </div>
+                      )}
 
                     </div>
                   </div>

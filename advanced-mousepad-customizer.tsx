@@ -29,15 +29,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Progress } from "@/components/ui/progress"
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 
@@ -49,7 +44,7 @@ import EnhancedImageEditor from "./components/enhanced-image-editor"
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/components/ui/cart-context";
 import { SideCart } from "@/components/ui/side-cart";
-import { getExactMousepadPrice, PRICING_TABLE } from "./lib/price";
+import { getBaseMousepadPrice, getExactMousepadPrice, PRICING_TABLE } from "./lib/price";
 
 // Declare html2canvas for TypeScript
 declare const html2canvas: any;
@@ -143,6 +138,48 @@ export default function AdvancedMousepadCustomizer() {
   const [editedImage, setEditedImage] = useState<string | null>(null)
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
+  
+  // Store original image for reset functionality
+  const [originalImage, setOriginalImage] = useState<string | null>(null)
+  
+  // Image editor state - these will be preserved between editor sessions
+  const [imageZoom, setImageZoom] = useState(1)
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
+  const [imageAdjustments, setImageAdjustments] = useState({
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    blur: 0,
+    sharpen: 0,
+    gamma: 100,
+  })
+  const [imageFilter, setImageFilter] = useState('none')
+  const [imageTextOverlays, setImageTextOverlays] = useState<{
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    color: string;
+    fontFamily: string;
+    rotation: number;
+    opacity: number;
+    bold: boolean;
+    italic: boolean;
+    shadow: boolean;
+    shadowColor: string;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
+  }[]>([])
+
+  // Crop state
+  const [imageCrop, setImageCrop] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null)
 
   // Text and typography state
   const [textElements, setTextElements] = useState<any[]>([])
@@ -191,8 +228,14 @@ export default function AdvancedMousepadCustomizer() {
   // Function to capture the complete customized design
   const captureCompleteDesign = async () => {
     try {
-      // Always use canvas method for guaranteed text and RGB capture
-      const baseImage = editedImage || uploadedImage;
+      // If we have an edited image from the enhanced editor, use it directly
+      if (editedImage) {
+        console.log('Using edited image from enhanced editor');
+        return editedImage;
+      }
+      
+      // Otherwise, use canvas method for guaranteed text and RGB capture
+      const baseImage = uploadedImage;
       if (baseImage) {
         console.log('Using canvas method to ensure text and RGB capture');
         return await createCanvasWithText(baseImage, textElements);
@@ -254,6 +297,48 @@ export default function AdvancedMousepadCustomizer() {
       return editedImage || uploadedImage || "/placeholder.svg";
     }
   }
+
+  // Function to capture all configuration data for cart
+  const captureConfigurationData = () => {
+    return {
+      // Basic mousepad settings
+      mousepadType,
+      mousepadSize,
+      thickness,
+      
+      // RGB settings (if applicable)
+      rgb: mousepadType === "rgb" ? {
+        mode: rgbMode,
+        color: rgbColor,
+        brightness: rgbBrightness,
+        animationSpeed: rgbAnimationSpeed
+      } : undefined,
+      
+      // Image configuration
+      imageSettings: {
+        uploadedImage,
+        editedImage,
+        originalImage,
+        zoom: imageZoom,
+        position: imagePosition,
+        adjustments: imageAdjustments,
+        filter: imageFilter,
+        crop: imageCrop,
+      },
+      
+      // Text overlays and elements
+      textElements,
+      imageTextOverlays,
+      
+      // Template and overlay data
+      selectedTemplate,
+      appliedOverlays,
+      
+      // Additional design elements
+      logoFile,
+      uploadedImages,
+    };
+  };
 
   // Enhanced method to create canvas with text, RGB overlays, and template overlays
   const createCanvasWithText = async (baseImage: string, textElements: any[]): Promise<string> => {
@@ -630,6 +715,7 @@ export default function AdvancedMousepadCustomizer() {
             setUploadedImage(all[0])
             setEditedImage(all[0])
             setMainImage(all[0]) // Set main image to uploaded
+            setOriginalImage(all[0]) // Store original image for reset
             setAppliedOverlays([]) // Clear overlays/templates
             setSelectedTemplate(null) // Clear selected template
             return all
@@ -691,6 +777,7 @@ export default function AdvancedMousepadCustomizer() {
   const removeImage = () => {
     setUploadedImage(null)
     setEditedImage(null)
+    setOriginalImage(null)
     setUploadedImages([])
     setSelectedTemplate(null) // Clear selected template
     setAppliedOverlays([]) // Clear overlays
@@ -871,6 +958,7 @@ export default function AdvancedMousepadCustomizer() {
       setUploadedImage(null)
       setEditedImage(null)
       setMainImage(null)
+      setOriginalImage(null)
       setDesignProgress((prev) => Math.max(prev - 15, 0))
     } else if (file && file.type.startsWith("image/")) {
       const reader = new FileReader()
@@ -879,6 +967,7 @@ export default function AdvancedMousepadCustomizer() {
         setUploadedImage(result)
         setEditedImage(result)
         setMainImage(result) // Set mainImage for live preview
+        setOriginalImage(result) // Store original image for reset
         setDesignProgress((prev) => Math.min(prev + 15, 100))
       }
       reader.onerror = (e) => {
@@ -1154,15 +1243,22 @@ export default function AdvancedMousepadCustomizer() {
                             </Button>
                           )}
                           {mainImage && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowImageEditor(true)}
-                              className="text-xs px-2 sm:px-3 border-blue-300 text-blue-700 hover:bg-blue-50"
-                            >
-                              <Settings className="h-3 w-3 mr-1" />
-                              Edit Image
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowImageEditor(true)}
+                                className="text-xs px-2 sm:px-3 border-blue-300 text-blue-700 hover:bg-blue-50"
+                              >
+                                <Settings className="h-3 w-3 mr-1" />
+                                Edit Image
+                              </Button>
+                              {showImageEditor && (
+                                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                                  Editing
+                                </Badge>
+                              )}
+                            </div>
                           )}
                         </>
                       )}
@@ -1218,9 +1314,9 @@ export default function AdvancedMousepadCustomizer() {
                         <div className={`relative h-full w-full overflow-hidden rounded-xl`}>
                           <div className={`absolute inset-0 bg-white`} />
 
-                          {(editedImage || mainImage) ? (
+                          {mainImage ? (
                             <Image
-                              src={editedImage || mainImage || ''}
+                              src={mainImage || ''}
                               alt="Custom design"
                               fill
                               className="object-cover"
@@ -1455,6 +1551,10 @@ export default function AdvancedMousepadCustomizer() {
                               onDragOver={handleDragOver}
                               onDragLeave={handleDragLeave}
                               onDrop={handleConfigDrop}
+                              imageZoom={imageZoom}
+                              onImageZoomChange={setImageZoom}
+                              imagePosition={imagePosition}
+                              onImagePositionChange={setImagePosition}
                             />
 
 
@@ -1564,23 +1664,25 @@ export default function AdvancedMousepadCustomizer() {
                                   console.log('Applied overlays:', appliedOverlays);
                                   console.log('Selected template:', selectedTemplate);
                                   const finalImage = await captureCompleteDesign();
-                                  console.log('Capture completed, image length:', finalImage.length);
+                                  console.log('Capture completed, image length:', finalImage?.length || 0);
+                                  console.log('Final image type:', typeof finalImage);
+                                  console.log('Final image is valid:', !!finalImage);
 
-                                  const calculatedPrice = getExactMousepadPrice({
+                                  const basePrice = getBaseMousepadPrice({
                                     mousepadSize,
                                     thickness,
                                     currency,
-                                    quantity,
                                     rgb: mousepadType === "rgb",
                                   });
-                                  console.log('Calculated price for cart:', calculatedPrice);
-                                  console.log('Price type:', typeof calculatedPrice);
-                                  console.log('Is price valid?', !isNaN(calculatedPrice) && calculatedPrice > 0);
+                                  console.log('Base price for cart:', basePrice);
+                                  console.log('Price type:', typeof basePrice);
+                                  console.log('Is price valid?', !isNaN(basePrice) && basePrice > 0);
 
                                   await addItem({
                                     id: Date.now().toString() + Math.random().toString(36).slice(2),
                                     name: "Custom Mousepad",
-                                    image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                    image: finalImage || uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                    finalImage: finalImage || uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     specs: {
                                       type: mousepadType,
                                       size: mousepadSize,
@@ -1591,13 +1693,18 @@ export default function AdvancedMousepadCustomizer() {
                                         brightness: rgbBrightness,
                                         animationSpeed: rgbAnimationSpeed
                                       } : undefined,
-                                      text: textElements,
+                                      text: imageTextOverlays.length > 0 ? imageTextOverlays : textElements,
                                       overlays: appliedOverlays,
+                                      adjustments: imageAdjustments,
+                                      filter: imageFilter,
+                                      zoom: imageZoom,
+                                      imagePosition: imagePosition,
                                     },
                                     quantity,
-                                    price: parseFloat(calculatedPrice.toFixed(2)),
+                                    price: parseFloat(basePrice.toFixed(2)),
                                     currency,
                                     originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                    configuration: captureConfigurationData(),
                                   });
                                   if (toast) {
                                     toast({
@@ -1610,18 +1717,18 @@ export default function AdvancedMousepadCustomizer() {
                                   setMobileMenuOpen(false);
                                 } catch (error) {
                                   console.error('Error adding to cart:', error);
-                                  const fallbackPrice = getExactMousepadPrice({
+                                  const fallbackBasePrice = getBaseMousepadPrice({
                                     mousepadSize,
                                     thickness,
                                     currency,
-                                    quantity,
                                     rgb: mousepadType === "rgb",
                                   });
-                                  console.log('Fallback price for cart:', fallbackPrice);
+                                  console.log('Fallback base price for cart:', fallbackBasePrice);
                                   await addItem({
                                     id: Date.now().toString() + Math.random().toString(36).slice(2),
                                     name: "Custom Mousepad",
                                     image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                    finalImage: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     specs: {
                                       type: mousepadType,
                                       size: mousepadSize,
@@ -1632,19 +1739,18 @@ export default function AdvancedMousepadCustomizer() {
                                         brightness: rgbBrightness,
                                         animationSpeed: rgbAnimationSpeed
                                       } : undefined,
-                                      text: textElements,
+                                      text: imageTextOverlays.length > 0 ? imageTextOverlays : textElements,
                                       overlays: appliedOverlays,
+                                      adjustments: imageAdjustments,
+                                      filter: imageFilter,
+                                      zoom: imageZoom,
+                                      imagePosition: imagePosition,
                                     },
                                     quantity,
-                                    price: parseFloat(getExactMousepadPrice({
-                                      mousepadSize,
-                                      thickness,
-                                      currency,
-                                      quantity,
-                                      rgb: mousepadType === "rgb",
-                                    }).toFixed(2)),
+                                    price: parseFloat(fallbackBasePrice.toFixed(2)),
                                     currency,
                                     originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                    configuration: captureConfigurationData(),
                                   });
                                   if (toast) {
                                     toast({
@@ -1894,12 +2000,15 @@ export default function AdvancedMousepadCustomizer() {
                               className={`absolute inset-0 bg-white`}
                             />
 
-                            {(editedImage || mainImage) ? (
+                            {mainImage ? (
                               <Image
-                                src={editedImage || mainImage || ''}
+                                src={mainImage || ''}
                                 alt="Custom design"
                                 fill
                                 className="object-cover"
+                                style={{
+                                  transform: `scale(${imageZoom}) translate(${imagePosition.x}%, ${imagePosition.y}%)`,
+                                }}
                               />
                             ) : selectedTemplate ? (
                               // Show nothing when template is selected - clean template display
@@ -2134,6 +2243,10 @@ export default function AdvancedMousepadCustomizer() {
                           onDragOver={handleDragOver}
                           onDragLeave={handleDragLeave}
                           onDrop={handleConfigDrop}
+                          imageZoom={imageZoom}
+                          onImageZoomChange={setImageZoom}
+                          imagePosition={imagePosition}
+                          onImagePositionChange={setImagePosition}
                           currency={currency}
                         />
 
@@ -2244,23 +2357,25 @@ export default function AdvancedMousepadCustomizer() {
                                 console.log('Applied overlays:', appliedOverlays);
                                 console.log('Selected template:', selectedTemplate);
                                 const finalImage = await captureCompleteDesign();
-                                console.log('Capture completed, image length:', finalImage.length);
+                                console.log('Capture completed, image length:', finalImage?.length || 0);
+                                console.log('Final image type:', typeof finalImage);
+                                console.log('Final image is valid:', !!finalImage);
 
-                                const calculatedPrice = getExactMousepadPrice({
+                                const basePrice = getBaseMousepadPrice({
                                   mousepadSize,
                                   thickness,
                                   currency,
-                                  quantity,
                                   rgb: mousepadType === "rgb",
                                 });
-                                console.log('Calculated price for cart:', calculatedPrice);
-                                console.log('Price type:', typeof calculatedPrice);
-                                console.log('Is price valid?', !isNaN(calculatedPrice) && calculatedPrice > 0);
+                                console.log('Base price for cart:', basePrice);
+                                console.log('Price type:', typeof basePrice);
+                                console.log('Is price valid?', !isNaN(basePrice) && basePrice > 0);
 
-                                await addItem({
+                                                                await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
-                                  image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                  image: finalImage || uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                  finalImage: finalImage || uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   specs: {
                                     type: mousepadType,
                                     size: mousepadSize,
@@ -2271,13 +2386,18 @@ export default function AdvancedMousepadCustomizer() {
                                       brightness: rgbBrightness,
                                       animationSpeed: rgbAnimationSpeed
                                     } : undefined,
-                                    text: textElements,
+                                    text: imageTextOverlays.length > 0 ? imageTextOverlays : textElements,
                                     overlays: appliedOverlays,
+                                    adjustments: imageAdjustments,
+                                      filter: imageFilter,
+                                      zoom: imageZoom,
+                                      imagePosition: imagePosition,
                                   },
                                   quantity,
-                                  price: parseFloat(calculatedPrice.toFixed(2)),
+                                  price: parseFloat(basePrice.toFixed(2)),
                                   currency,
                                   originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                  configuration: captureConfigurationData(),
                                 });
                                 if (toast) {
                                   toast({
@@ -2290,18 +2410,18 @@ export default function AdvancedMousepadCustomizer() {
                               } catch (error) {
                                 console.error('Error adding to cart:', error);
                                 // Fallback to base image if capture fails
-                                const fallbackPrice = getExactMousepadPrice({
+                                const fallbackBasePrice = getBaseMousepadPrice({
                                   mousepadSize,
                                   thickness,
                                   currency,
-                                  quantity,
                                   rgb: mousepadType === "rgb",
                                 });
-                                console.log('Fallback price for cart:', fallbackPrice);
+                                console.log('Fallback base price for cart:', fallbackBasePrice);
                                 await addItem({
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
                                   image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                  finalImage: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   specs: {
                                     type: mousepadType,
                                     size: mousepadSize,
@@ -2312,19 +2432,18 @@ export default function AdvancedMousepadCustomizer() {
                                       brightness: rgbBrightness,
                                       animationSpeed: rgbAnimationSpeed
                                     } : undefined,
-                                    text: textElements,
+                                    text: imageTextOverlays.length > 0 ? imageTextOverlays : textElements,
                                     overlays: appliedOverlays,
+                                    adjustments: imageAdjustments,
+                                    filter: imageFilter,
+                                    zoom: imageZoom,
+                                    imagePosition: imagePosition,
                                   },
                                   quantity,
-                                  price: parseFloat(getExactMousepadPrice({
-                                    mousepadSize,
-                                    thickness,
-                                    currency,
-                                    quantity,
-                                    rgb: mousepadType === "rgb",
-                                  }).toFixed(2)),
+                                  price: parseFloat(fallbackBasePrice.toFixed(2)),
                                   currency,
                                   originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                  configuration: captureConfigurationData(),
                                 });
                                 if (toast) {
                                   toast({
@@ -2374,13 +2493,73 @@ export default function AdvancedMousepadCustomizer() {
       {/* Enhanced Image Editor */}
       {showImageEditor && (
         <EnhancedImageEditor
-          imageSrc={mainImage}
+          imageSrc={originalImage || mainImage}
           onImageChange={(newImageSrc) => {
-            setEditedImage(newImageSrc); // Only update editedImage for live preview
+            // When changes are applied, update all image states
+            setUploadedImage(newImageSrc);
+            setEditedImage(null); // Clear edited image since it's now the base
+            setMainImage(newImageSrc); // Update main image
+            setUploadedImages(prev => {
+              // Update the first image in the array (main image)
+              const newImages = [...prev];
+              if (newImages.length > 0) {
+                newImages[0] = newImageSrc;
+              } else {
+                newImages.push(newImageSrc);
+              }
+              return newImages;
+            });
+            
+            // Keep the original image unchanged for future edit sessions
+            // The editor state (zoom, position, adjustments, etc.) should persist
+            // so users can continue editing from where they left off
           }}
           onClose={() => setShowImageEditor(false)}
           aspectRatio={currentSize.width / currentSize.height}
           mousepadSize={mousepadSize}
+          enableLivePreview={true}
+          zoom={imageZoom}
+          onZoomChange={setImageZoom}
+          imagePosition={imagePosition}
+          onImagePositionChange={setImagePosition}
+          currentAdjustments={imageAdjustments}
+          currentFilter={imageFilter}
+          currentTextOverlays={imageTextOverlays}
+          onAdjustmentsChange={setImageAdjustments}
+          onFilterChange={setImageFilter}
+          onTextOverlaysChange={setImageTextOverlays}
+          currentCrop={imageCrop}
+          onCropChange={setImageCrop}
+          onReset={() => {
+            // Reset to original uploaded image and clear all editor state
+            if (originalImage) {
+              setMainImage(originalImage);
+              setUploadedImage(originalImage);
+              setEditedImage(originalImage);
+              setUploadedImages(prev => {
+                const newImages = [...prev];
+                if (newImages.length > 0) {
+                  newImages[0] = originalImage;
+                }
+                return newImages;
+              });
+            }
+            
+            // Reset all image editor state
+            setImageZoom(1);
+            setImagePosition({ x: 0, y: 0 });
+            setImageAdjustments({
+              brightness: 100,
+              contrast: 100,
+              saturation: 100,
+              blur: 0,
+              sharpen: 0,
+              gamma: 100,
+            });
+            setImageFilter('none');
+            setImageTextOverlays([]);
+            setImageCrop(null);
+          }}
         />
       )}
 

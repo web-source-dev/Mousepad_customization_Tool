@@ -30,6 +30,25 @@ export const PRICING_TABLE: Record<string, Record<string, Record<string, number>
   },
 };
 
+// Get base price per unit (without quantity multiplication)
+export function getBaseMousepadPrice({
+  mousepadSize,
+  thickness,
+  currency = "USD",
+  rgb = false,
+}: {
+  mousepadSize: string,
+  thickness: string,
+  currency?: string,
+  rgb?: boolean,
+}) {
+  let base = PRICING_TABLE[currency][mousepadSize]?.[thickness] || 0;
+  // Add-ons
+  if (rgb) base += 15;
+  return base;
+}
+
+// Get total price with quantity and bulk discount
 export function getExactMousepadPrice({
   mousepadSize,
   thickness,
@@ -43,10 +62,8 @@ export function getExactMousepadPrice({
   quantity?: number,
   rgb?: boolean,
 }) {
-  let base = PRICING_TABLE[currency][mousepadSize]?.[thickness] || 0;
-  // Add-ons
-  if (rgb) base += 15;
-  let subtotal = base * quantity;
+  const basePrice = getBaseMousepadPrice({ mousepadSize, thickness, currency, rgb });
+  let subtotal = basePrice * quantity;
   // Bulk discount
   if (quantity > 1) subtotal = subtotal * 0.9;
   return subtotal;

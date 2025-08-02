@@ -105,7 +105,7 @@ export default function CartDetailsPage() {
                   <div key={item.id} className="flex flex-col sm:flex-row gap-4 items-center border-b pb-6 last:border-b-0 group">
                     <div className="w-24 h-24 relative flex-shrink-0 overflow-hidden rounded-lg border bg-white">
                       <Image 
-                        src={item.image} 
+                        src={item.image || '/placeholder.svg'} 
                         alt={item.name} 
                         fill 
                         className="object-contain group-hover:scale-105 transition-transform duration-200" 
@@ -155,6 +155,49 @@ export default function CartDetailsPage() {
                           );
                         })}
                       </div>
+                      
+                      {/* Configuration details */}
+                      {item.configuration && (
+                        <div className="text-xs text-gray-600 mt-2 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Configuration:</span>
+                            <span>{item.configuration.mousepadType} • {item.configuration.mousepadSize} • {item.configuration.thickness}</span>
+                          </div>
+                          
+                          {item.configuration.rgb && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">RGB:</span>
+                              <span>{item.configuration.rgb.mode} mode • {item.configuration.rgb.brightness}% brightness</span>
+                            </div>
+                          )}
+                          
+                          {(item.configuration.imageSettings?.uploadedImage || item.configuration.selectedTemplate) && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Image:</span>
+                              <span>
+                                {item.configuration.selectedTemplate ? 'Template' : 'Custom Upload'}
+                                {item.configuration.imageSettings?.zoom !== 1 && ` • ${Math.round(item.configuration.imageSettings.zoom * 100)}% zoom`}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {(item.configuration.textElements?.length > 0 || item.configuration.imageTextOverlays?.length > 0) && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Text:</span>
+                              <span>
+                                {item.configuration.imageTextOverlays?.length || item.configuration.textElements?.length} element{(item.configuration.imageTextOverlays?.length || item.configuration.textElements?.length) !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {item.configuration.appliedOverlays?.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Overlays:</span>
+                              <span>{item.configuration.appliedOverlays.length} applied</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 mt-2">
                         <span className="text-sm">Qty:</span>
                         <Button size="icon" variant="outline" aria-label="Decrease quantity" onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })} disabled={item.quantity <= 1}>

@@ -58,6 +58,12 @@ interface ConfigurationPanelProps {
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
   
+  // Image Position Props
+  imageZoom?: number
+  onImageZoomChange?: (value: number) => void
+  imagePosition?: { x: number; y: number }
+  onImagePositionChange?: (value: { x: number; y: number }) => void
+  
   // Pricing Props
   currency?: 'USD' | 'SGD'
   
@@ -93,11 +99,16 @@ export function ConfigurationPanel({
   onDragOver,
   onDragLeave,
   onDrop,
+  imageZoom = 1,
+  onImageZoomChange,
+  imagePosition = { x: 0, y: 0 },
+  onImagePositionChange,
   currency = 'USD',
   className
 }: ConfigurationPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     deviceType: false,
+    imagePosition: false,
     deviceModel: false,
     caseType: false,
     imageUpload: false
@@ -464,6 +475,120 @@ export function ConfigurationPanel({
                 )
               }}
             />
+
+            {/* 05. Image Position - Only show when image is uploaded */}
+            {uploadedImage && (
+              <ExpandableDropdownSelector
+                title="05. Image Position"
+                options={[
+                  {
+                    id: "position",
+                    label: "Adjust Position & Zoom",
+                    value: "position",
+                    description: "Fine-tune the position and zoom of your uploaded image",
+                    icon: <Settings className="h-4 w-4 text-blue-500" />
+                  }
+                ]}
+                value="position"
+                onValueChange={() => {}}
+                placeholder="Adjust image position"
+                isExpanded={expandedSections.imagePosition}
+                onToggle={() => toggleSection('imagePosition')}
+                inlineChildren={{
+                  position: (
+                    <div className="bg-blue-50/30">
+                      <div className="p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Settings className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-semibold text-blue-900">Image Adjustments</span>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          {/* Zoom Control */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-medium text-gray-700">Zoom</span>
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{Math.round(imageZoom * 100)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="3"
+                              step="0.01"
+                              value={imageZoom}
+                              onChange={(e) => onImageZoomChange?.(Number(e.target.value))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>10%</span>
+                              <span>300%</span>
+                            </div>
+                          </div>
+
+                          {/* Position Controls */}
+                          <div className="grid grid-cols-2 gap-4">
+                            {/* X Position */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-gray-700">X Position</span>
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{Math.round(imagePosition.x)}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="1"
+                                value={imagePosition.x}
+                                onChange={(e) => onImagePositionChange?.({ ...imagePosition, x: Number(e.target.value) })}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>-50%</span>
+                                <span>50%</span>
+                              </div>
+                            </div>
+
+                            {/* Y Position */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-gray-700">Y Position</span>
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{Math.round(imagePosition.y)}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="1"
+                                value={imagePosition.y}
+                                onChange={(e) => onImagePositionChange?.({ ...imagePosition, y: Number(e.target.value) })}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>-50%</span>
+                                <span>50%</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Reset Button */}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full border-blue-300 text-blue-700 hover:bg-blue-100"
+                            onClick={() => {
+                              onImageZoomChange?.(1);
+                              onImagePositionChange?.({ x: 0, y: 0 });
+                            }}
+                          >
+                            Reset to Default
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
