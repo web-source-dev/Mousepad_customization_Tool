@@ -440,10 +440,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         price: validatedItem.price,
         quantity: validatedItem.quantity,
         specs: validatedItem.specs,
-        hasImage: !!validatedItem.image,
-        configuration: validatedItem.configuration,
-        appliedOverlays: validatedItem.configuration?.appliedOverlays,
-        selectedTemplate: validatedItem.configuration?.selectedTemplate
+        hasImage: !!validatedItem.image
       });
       
       setItems((prev) => {

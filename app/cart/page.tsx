@@ -84,93 +84,36 @@ export default function CartPage() {
 
   const handleUserDetailsSubmit = async (userDetails: any) => {
     try {
-      console.log('Starting checkout process with user details:', userDetails);
-      console.log('Cart items to process:', items.length);
-
       // Collect all item data including customized images
       const itemsWithImages = await Promise.all(
-        items.map(async (item, index) => {
-          console.log(`Processing item ${index + 1}: ${item.name}`);
-          
+        items.map(async (item) => {
           // Get the original uploaded image URL
           const originalImageUrl = item.image;
           
-          // Get the customized image - prioritize finalImage over image
-          let customizedImageBase64 = item.finalImage || item.image;
+          // Get the customized image base64 (if available in specs)
+          let customizedImageBase64 = null;
           
-          // Ensure we have base64 data for the customized image
-          if (customizedImageBase64 && !customizedImageBase64.startsWith('data:image')) {
-            console.log(`Item ${index + 1}: Converting image to base64`);
-            try {
-              // Convert image URL to base64 if it's not already
-              const response = await fetch(customizedImageBase64);
-              const blob = await response.blob();
-              const base64 = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.readAsDataURL(blob);
-              });
-              customizedImageBase64 = base64 as string;
-            } catch (error) {
-              console.error(`Failed to convert image to base64 for item ${index + 1}:`, error);
-              customizedImageBase64 = item.image; // Fallback to original
-            }
+          // Check if the item has a customized image in its specs
+          if (item.specs && item.specs.customizedImage) {
+            customizedImageBase64 = item.specs.customizedImage;
+          } else {
+            // If no customized image is stored, try to generate it from the current image
+            // This is a fallback in case the customization wasn't saved properly
+            customizedImageBase64 = originalImageUrl;
           }
 
-          // Prepare item data for Wix
-          const processedItem = {
-            id: item.id,
-            name: item.name,
-            price: parseFloat(item.price.toFixed(2)),
-            quantity: item.quantity,
-            currency: item.currency || 'USD',
-            image: originalImageUrl,
-            finalImage: customizedImageBase64,
+          return {
+            ...item,
+            originalImageUrl,
+            customizedImageBase64,
+            // Include all specs data
             specs: {
-              type: item.specs?.type || item.configuration?.mousepadType || 'standard',
-              size: item.specs?.size || item.configuration?.mousepadSize || '900x400',
-              thickness: item.specs?.thickness || item.configuration?.thickness || '3',
-              rgb: item.specs?.rgb || (item.configuration?.rgb ? {
-                mode: item.configuration.rgb.mode,
-                color: item.configuration.rgb.color,
-                brightness: item.configuration.rgb.brightness,
-                animationSpeed: item.configuration.rgb.animationSpeed
-              } : null),
-              text: item.specs?.text || item.configuration?.textElements || [],
-              overlays: item.specs?.overlays || item.configuration?.appliedOverlays || [],
-              adjustments: item.specs?.adjustments || item.configuration?.imageSettings?.adjustments || null,
-              filter: item.specs?.filter || item.configuration?.imageSettings?.filter || 'none',
-              zoom: item.specs?.zoom || item.configuration?.imageSettings?.zoom || 1,
-              imagePosition: item.specs?.imagePosition || item.configuration?.imageSettings?.position || { x: 0, y: 0 }
-            },
-            configuration: item.configuration || {
-              mousepadType: 'standard',
-              mousepadSize: '900x400',
-              thickness: '3',
-              textElements: [],
-              appliedOverlays: [],
-              imageSettings: {
-                uploadedImage: null,
-                editedImage: null,
-                originalImage: null,
-                zoom: 1,
-                position: { x: 0, y: 0 },
-                adjustments: {
-                  brightness: 100,
-                  contrast: 100,
-                  saturation: 100,
-                  blur: 0,
-                  sharpen: 0,
-                  gamma: 100
-                },
-                filter: 'none',
-                crop: null
-              }
+              ...item.specs,
+              // Ensure we have the image data
+              originalImageUrl,
+              customizedImageBase64
             }
           };
-
-          console.log(`Item ${index + 1} processed successfully`);
-          return processedItem;
         })
       );
 
@@ -206,7 +149,7 @@ export default function CartPage() {
       if (typeof window !== "undefined" && window.parent) {
         window.parent.postMessage(
           {
-            type: "initiatePayment",
+            type: "checkoutData",
             payload: checkoutData,
           },
           "*"
@@ -298,15 +241,9 @@ export default function CartPage() {
                                 ✓ {item.configuration.textElements.length} text element{item.configuration.textElements.length !== 1 ? 's' : ''}
                               </div>
                             )}
-                            {(item.configuration?.appliedOverlays?.length > 0 || item.configuration?.selectedTemplate) && (
+                            {item.configuration?.appliedOverlays?.length > 0 && (
                               <div className="text-xs text-purple-600">
-                                ✓ {item.configuration?.selectedTemplate ? 'Gaming Template' : ''}
-                                {item.configuration?.appliedOverlays?.length > 0 && (
-                                  <>
-                                    {item.configuration?.selectedTemplate ? ' + ' : ''}
-                                    {item.configuration.appliedOverlays.length} overlay{item.configuration.appliedOverlays.length !== 1 ? 's' : ''}
-                                  </>
-                                )}
+                                ✓ {item.configuration.appliedOverlays.length} overlay{item.configuration.appliedOverlays.length !== 1 ? 's' : ''}
                               </div>
                             )}
                             {item.configuration?.rgb && (
@@ -391,15 +328,9 @@ export default function CartPage() {
                               {items[0].configuration.textElements.length} text element{items[0].configuration.textElements.length !== 1 ? 's' : ''}
                             </span>
                           )}
-                          {(items[0].configuration?.appliedOverlays?.length > 0 || items[0].configuration?.selectedTemplate) && (
+                          {items[0].configuration?.appliedOverlays?.length > 0 && (
                             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
-                              {items[0].configuration?.selectedTemplate ? 'Gaming Template' : ''}
-                              {items[0].configuration?.appliedOverlays?.length > 0 && (
-                                <>
-                                  {items[0].configuration?.selectedTemplate ? ' + ' : ''}
-                                  {items[0].configuration.appliedOverlays.length} overlay{items[0].configuration.appliedOverlays.length !== 1 ? 's' : ''}
-                                </>
-                              )}
+                              {items[0].configuration.appliedOverlays.length} overlay{items[0].configuration.appliedOverlays.length !== 1 ? 's' : ''}
                             </span>
                           )}
                           {items[0].configuration?.rgb && (
@@ -542,18 +473,10 @@ export default function CartPage() {
                             </div>
                           )}
                           
-                          {(item.configuration.appliedOverlays?.length > 0 || item.configuration.selectedTemplate) && (
+                          {item.configuration.appliedOverlays?.length > 0 && (
                             <div className="flex items-center gap-1">
                               <span className="font-medium">Overlays:</span>
-                              <span>
-                                {item.configuration.selectedTemplate ? 'Gaming Template' : ''}
-                                {item.configuration.appliedOverlays?.length > 0 && (
-                                  <>
-                                    {item.configuration.selectedTemplate ? ' + ' : ''}
-                                    {item.configuration.appliedOverlays.length} applied
-                                  </>
-                                )}
-                              </span>
+                              <span>{item.configuration.appliedOverlays.length} applied</span>
                             </div>
                           )}
                         </div>

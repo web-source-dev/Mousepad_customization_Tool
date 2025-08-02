@@ -96,10 +96,6 @@ async function saveOrderToDatabase(email, data) {
     try {
         console.log("Starting to process order items for database save...");
 
-        // Arrays to store image URLs for separate database columns
-        let baseImageUrls = [];
-        let finalImageUrls = [];
-
         // Process items and upload images first
         const processedItems = await Promise.all(data.items.map(async (item, index) => {
             console.log(`Processing item ${index + 1}/${data.items.length}: ${item.name}`);
@@ -137,17 +133,15 @@ async function saveOrderToDatabase(email, data) {
                 finalImageUrl = item.finalImage || "";
             }
 
-            // Store image URLs in separate arrays for database columns
-            baseImageUrls.push(imageUrl);
-            finalImageUrls.push(finalImageUrl);
-
-            // Create a minimal item object with only essential data (without image URLs)
+            // Create a minimal item object with only essential data
             const minimalItem = {
                 id: item.id,
                 name: item.name,
                 price: Number(item.price),
                 quantity: Number(item.quantity),
                 currency: item.currency || "USD",
+                image: imageUrl,
+                finalImage: finalImageUrl,
                 // Only include essential specs and configuration
                 specs: {
                     type: item.specs?.type || item.configuration?.mousepadType || "standard",
@@ -178,7 +172,7 @@ async function saveOrderToDatabase(email, data) {
 
         console.log("All items processed, creating order object...");
 
-        // Create order object with separate image columns
+        // Create minimal order object
         const order = {
             orderId: data.orderId,
             email: email,
@@ -197,9 +191,6 @@ async function saveOrderToDatabase(email, data) {
                 additionalNotes: data.customerInfo?.additionalNotes || ""
             },
             items: processedItems,
-            // Separate columns for images
-            baseImageUrls: baseImageUrls,
-            finalImageUrls: finalImageUrls,
             subtotal: Number(data.subtotal),
             tax: Number(data.tax),
             shipping: Number(data.shipping),
@@ -218,9 +209,7 @@ async function saveOrderToDatabase(email, data) {
         console.log("Sending confirmation email...");
         let body = generateOrderEmailBody({
             ...data,
-            items: processedItems, // Use processed items without image URLs
-            baseImageUrls: baseImageUrls, // Pass image URLs separately for email
-            finalImageUrls: finalImageUrls
+            items: processedItems // Use processed items with URLs instead of base64
         });
         let to = email;
         let subject = `Order Confirmation - ${data.orderId}`;
@@ -249,9 +238,9 @@ function generateOrderEmailBody(order) {
         <h3>Order #${order.orderId || ''}</h3>
         <hr>
         <h4>Order Items</h4>
-        ${order.items.map((item, index) => `
+        ${order.items.map(item => `
           <div style="display:flex;align-items:center;margin-bottom:15px;">
-            <img src="${order.finalImageUrls[index] || order.baseImageUrls[index] || '/placeholder.jpg'}" alt="${item.name}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;margin-right:15px;">
+            <img src="${item.finalImage || item.image}" alt="${item.name}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;margin-right:15px;">
             <div>
               <div><b>${item.name}</b></div>
               <div style="font-size:12px;color:#666;">

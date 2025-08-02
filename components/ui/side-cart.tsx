@@ -71,18 +71,10 @@ export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
         )}
         
         {/* Overlays */}
-        {(config.appliedOverlays?.length > 0 || config.selectedTemplate) && (
+        {config.appliedOverlays?.length > 0 && (
           <div className="flex items-center gap-1">
             <Image className="h-3 w-3" />
-            <span>
-              {config.selectedTemplate ? 'Gaming Template' : ''}
-              {config.appliedOverlays?.length > 0 && (
-                <>
-                  {config.selectedTemplate ? ' + ' : ''}
-                  {config.appliedOverlays.length} overlay{config.appliedOverlays.length !== 1 ? 's' : ''}
-                </>
-              )}
-            </span>
+            <span>{config.appliedOverlays.length} overlay{config.appliedOverlays.length !== 1 ? 's' : ''}</span>
           </div>
         )}
       </div>

@@ -745,79 +745,6 @@ export default function AdvancedMousepadCustomizer() {
   // Add a new state to track the main image source (uploaded or template)
   const [mainImage, setMainImage] = useState<string | null>(null)
 
-  // Function to generate a sample customized mousepad image
-  const generateSampleCustomizedImage = async (): Promise<string> => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Set canvas size based on mousepad size (horizontal orientation)
-    const sizeMap: { [key: string]: { width: number; height: number } } = {
-      '900x400': { width: 900, height: 400 },
-      '800x300': { width: 800, height: 300 },
-      '700x250': { width: 700, height: 250 },
-      '600x200': { width: 600, height: 200 }
-    };
-    
-    const size = sizeMap[mousepadSize] || { width: 900, height: 400 };
-    canvas.width = size.width;
-    canvas.height = size.height;
-    
-    if (ctx) {
-      // Create gradient background
-      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      gradient.addColorStop(0, '#667eea');
-      gradient.addColorStop(1, '#764ba2');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Add RGB border effect if RGB mode
-      if (mousepadType === 'rgb') {
-        ctx.save();
-        ctx.strokeStyle = rgbColor || '#ff0000';
-        ctx.lineWidth = 20;
-        ctx.globalAlpha = 0.8;
-        ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
-        ctx.restore();
-      }
-      
-      // Add sample text
-      ctx.save();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 48px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('CUSTOM MOUSEPAD', canvas.width / 2, canvas.height / 2 - 30);
-      
-      ctx.font = '24px Arial';
-      ctx.fillText(`${mousepadSize} • ${thickness}mm`, canvas.width / 2, canvas.height / 2 + 20);
-      
-      if (mousepadType === 'rgb') {
-        ctx.fillText(`RGB ${rgbMode.toUpperCase()}`, canvas.width / 2, canvas.height / 2 + 50);
-      }
-      ctx.restore();
-      
-      // Add corner decorations
-      ctx.save();
-      ctx.fillStyle = '#ffffff';
-      ctx.globalAlpha = 0.3;
-      ctx.beginPath();
-      ctx.arc(50, 50, 30, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(canvas.width - 50, 50, 30, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(50, canvas.height - 50, 30, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(canvas.width - 50, canvas.height - 50, 30, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.restore();
-    }
-    
-    return canvas.toDataURL('image/png', 0.95);
-  };
-
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   // Load saved designs from localStorage on mount
@@ -2524,14 +2451,7 @@ export default function AdvancedMousepadCustomizer() {
                                 });
                                 console.log('Applied overlays:', appliedOverlays);
                                 console.log('Selected template:', selectedTemplate);
-                                let finalImage = await captureCompleteDesign();
-                                
-                                // If no custom image is available, generate a sample image
-                                if (!finalImage || finalImage === '/placeholder.svg') {
-                                  console.log('No custom image found, generating sample image');
-                                  finalImage = await generateSampleCustomizedImage();
-                                }
-                                
+                                const finalImage = await captureCompleteDesign();
                                 console.log('Capture completed, image length:', finalImage?.length || 0);
                                 console.log('Final image type:', typeof finalImage);
                                 console.log('Final image is valid:', !!finalImage);
@@ -2588,20 +2508,13 @@ export default function AdvancedMousepadCustomizer() {
                                 if (toast) {
                                   toast({
                                     title: "Warning",
-                                    description: "Could not capture complete design. Generating sample image.",
+                                    description: "Could not capture complete design. Using base image with configuration data.",
                                     variant: "destructive",
                                     duration: 4000,
                                   });
                                 }
                                 
-                                // Generate sample image as fallback
-                                let fallbackImage = "/placeholder.svg";
-                                try {
-                                  fallbackImage = await generateSampleCustomizedImage();
-                                } catch (genError) {
-                                  console.error('Failed to generate sample image:', genError);
-                                }
-                                
+                                // Fallback to base image if capture fails
                                 const fallbackBasePrice = getBaseMousepadPrice({
                                   mousepadSize,
                                   thickness,
@@ -2613,7 +2526,7 @@ export default function AdvancedMousepadCustomizer() {
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
                                   image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
-                                  finalImage: fallbackImage,
+                                  finalImage: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   specs: {
                                     type: mousepadType,
                                     size: mousepadSize,
