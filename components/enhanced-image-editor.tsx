@@ -180,7 +180,7 @@ export default function EnhancedImageEditor({
   const [textInput, setTextInput] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
-  
+
   // Text dragging state
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [textDragStart, setTextDragStart] = useState({ x: 0, y: 0 });
@@ -262,12 +262,12 @@ export default function EnhancedImageEditor({
   // Debounced live preview update
   const updateLivePreview = useCallback(async () => {
     if (!enableLivePreview || !currentImage) return;
-    
+
     // Clear existing timeout
     if (livePreviewTimeoutRef.current) {
       clearTimeout(livePreviewTimeoutRef.current);
     }
-    
+
     // Set new timeout for debounced update
     livePreviewTimeoutRef.current = setTimeout(async () => {
       try {
@@ -295,7 +295,7 @@ export default function EnhancedImageEditor({
     if (isDraggingText) {
       document.addEventListener('mousemove', handleTextMouseMove);
       document.addEventListener('mouseup', handleTextMouseUp);
-      
+
       return () => {
         document.removeEventListener('mousemove', handleTextMouseMove);
         document.removeEventListener('mouseup', handleTextMouseUp);
@@ -308,7 +308,7 @@ export default function EnhancedImageEditor({
     if (isDraggingCrop) {
       document.addEventListener('mousemove', handleCropMouseMove as any);
       document.addEventListener('mouseup', handleCropMouseUp);
-      
+
       return () => {
         document.removeEventListener('mousemove', handleCropMouseMove as any);
         document.removeEventListener('mouseup', handleCropMouseUp);
@@ -378,7 +378,7 @@ export default function EnhancedImageEditor({
             blur(${adjustments.blur}px)
             ${selectedFilter !== 'none' ? selectedFilter : ''}
           `;
-          
+
           ctx.drawImage(img, 0, 0);
         }
 
@@ -418,7 +418,7 @@ export default function EnhancedImageEditor({
     setSelectedTextId(newText.id);
     setTextInput('');
     setShowTextEditor(false);
-    
+
     // Don't update main preview - only show in editor
   };
 
@@ -434,7 +434,7 @@ export default function EnhancedImageEditor({
   const saveTextEdit = () => {
     if (!editingTextId || !textInput.trim()) return;
 
-    const newTextOverlays = textOverlays.map(text => 
+    const newTextOverlays = textOverlays.map(text =>
       text.id === editingTextId ? { ...text, text: textInput } : text
     );
     setTextOverlays(newTextOverlays);
@@ -442,12 +442,12 @@ export default function EnhancedImageEditor({
     setTextInput('');
     setEditingTextId(null);
     setShowTextEditor(false);
-    
+
     // Don't update main preview - only show in editor
   };
 
   const updateTextOverlay = (id: string, updates: Partial<TextOverlay>) => {
-    const newTextOverlays = textOverlays.map(text => 
+    const newTextOverlays = textOverlays.map(text =>
       text.id === id ? { ...text, ...updates } : text
     );
     setTextOverlays(newTextOverlays);
@@ -460,7 +460,7 @@ export default function EnhancedImageEditor({
     setTextOverlays(newTextOverlays);
     onTextOverlaysChange?.(newTextOverlays);
     setSelectedTextId(null);
-    
+
     // Don't update main preview - only show in editor
   };
 
@@ -476,23 +476,23 @@ export default function EnhancedImageEditor({
 
   const handleTextMouseMove = (e: React.MouseEvent | MouseEvent) => {
     if (!isDraggingText || !draggedTextId || !imageContainerRef.current) return;
-    
+
     const deltaX = e.clientX - textDragStart.x;
     const deltaY = e.clientY - textDragStart.y;
-    
+
     // Convert pixel deltas to percentage deltas based on zoomed image size
     const container = imageContainerRef.current.getBoundingClientRect();
     const deltaXPercent = (deltaX / container.width) * 100;
     const deltaYPercent = (deltaY / container.height) * 100;
-    
-    setTextOverlays(prev => prev.map(text => 
-      text.id === draggedTextId 
+
+    setTextOverlays(prev => prev.map(text =>
+      text.id === draggedTextId
         ? { ...text, x: text.x + deltaXPercent, y: text.y + deltaYPercent }
         : text
     ));
-    
+
     setTextDragStart({ x: e.clientX, y: e.clientY });
-    
+
     // Don't update main preview - only show in editor
   };
 
@@ -508,7 +508,7 @@ export default function EnhancedImageEditor({
   // Crop functions
   const startCrop = () => {
     if (!currentImage) return;
-    
+
     // Initialize crop area to center 80% of image
     const newCropArea = {
       x: 10,
@@ -522,16 +522,16 @@ export default function EnhancedImageEditor({
 
   const handleCropMouseDown = (e: React.MouseEvent, handle?: string) => {
     if (activeTab !== 'crop' || !cropArea) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     const rect = imageContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
+
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    
+
     if (handle) {
       // Resizing specific handle
       setResizeHandle(handle);
@@ -543,33 +543,33 @@ export default function EnhancedImageEditor({
       // Creating new crop area
       setCropMode('select');
     }
-    
+
     setIsDraggingCrop(true);
     setCropDragStart({ x, y });
   };
 
   const handleCropMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingCrop || !cropArea || activeTab !== 'crop') return;
-    
+
     const rect = imageContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
+
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    
+
     const deltaX = x - cropDragStart.x;
     const deltaY = y - cropDragStart.y;
-    
+
     if (cropMode === 'move') {
       // Move entire crop area
       const newX = Math.max(0, Math.min(100 - cropArea.width, cropArea.x + deltaX));
       const newY = Math.max(0, Math.min(100 - cropArea.height, cropArea.y + deltaY));
-      
+
       setCropArea({ ...cropArea, x: newX, y: newY });
     } else if (cropMode === 'resize' && resizeHandle) {
       // Resize based on handle
       const newCropArea = { ...cropArea };
-      
+
       switch (resizeHandle) {
         case 'nw': // Top-left
           newCropArea.x = Math.min(x, cropArea.x + cropArea.width - 10);
@@ -606,24 +606,24 @@ export default function EnhancedImageEditor({
           newCropArea.height = Math.max(10, y - cropArea.y);
           break;
       }
-      
+
       // Ensure crop area stays within bounds
       newCropArea.x = Math.max(0, Math.min(100 - newCropArea.width, newCropArea.x));
       newCropArea.y = Math.max(0, Math.min(100 - newCropArea.height, newCropArea.y));
-      
+
       setCropArea(newCropArea);
     }
-    
+
     setCropDragStart({ x, y });
   };
 
   const handleCropMouseUp = () => {
     if (!isDraggingCrop) return;
-    
+
     setIsDraggingCrop(false);
     setResizeHandle(null);
     setCropMode('select');
-    
+
     if (cropArea) {
       onCropChange?.(cropArea);
     }
@@ -632,16 +632,16 @@ export default function EnhancedImageEditor({
   const isPointInCropArea = (x: number, y: number): boolean => {
     if (!cropArea) return false;
     return x >= cropArea.x && x <= cropArea.x + cropArea.width &&
-           y >= cropArea.y && y <= cropArea.y + cropArea.height;
+      y >= cropArea.y && y <= cropArea.y + cropArea.height;
   };
 
   const applyCrop = async (crop: CropArea) => {
     if (!currentImage) return;
-    
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     return new Promise((resolve) => {
       img.onload = () => {
         // Calculate crop dimensions in pixels
@@ -649,24 +649,24 @@ export default function EnhancedImageEditor({
         const cropY = (crop.y / 100) * img.height;
         const cropWidth = (crop.width / 100) * img.width;
         const cropHeight = (crop.height / 100) * img.height;
-        
+
         canvas.width = cropWidth;
         canvas.height = cropHeight;
-        
+
         if (ctx) {
           ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
         }
-        
+
         const croppedImage = canvas.toDataURL('image/jpeg', 0.95);
         setCurrentImage(croppedImage);
         setCropArea(null); // Clear crop area after applying
         onCropChange?.(null);
-        
+
         // Update main preview
         onImageChange(croppedImage);
         resolve(croppedImage);
       };
-      
+
       img.src = currentImage;
     });
   };
@@ -687,11 +687,11 @@ export default function EnhancedImageEditor({
     if (!currentImage) return '';
 
     setIsProcessing(true);
-    
+
     try {
       // First apply effects
       const effectedImage = await applyEffects();
-      
+
       // Then add text overlays and apply zoom/position
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -702,7 +702,7 @@ export default function EnhancedImageEditor({
           // Calculate the final canvas size based on zoom
           const zoomedWidth = img.width * zoom;
           const zoomedHeight = img.height * zoom;
-          
+
           canvas.width = zoomedWidth;
           canvas.height = zoomedHeight;
 
@@ -712,42 +712,42 @@ export default function EnhancedImageEditor({
             ctx.translate(zoomedWidth / 2, zoomedHeight / 2);
             ctx.scale(zoom, zoom);
             ctx.translate(-img.width / 2, -img.height / 2);
-            
+
             // Apply position offset
             const offsetX = (imagePosition.x / 100) * img.width;
             const offsetY = (imagePosition.y / 100) * img.height;
             ctx.translate(offsetX, offsetY);
-            
+
             ctx.drawImage(img, 0, 0);
 
-                         // Draw text overlays - position relative to zoomed image
-             textOverlays.forEach(text => {
-               ctx.save();
-               // Position text relative to the zoomed image dimensions
-               const textX = text.x * canvas.width / 100;
-               const textY = text.y * canvas.height / 100;
-               ctx.translate(textX, textY);
-               ctx.rotate((text.rotation * Math.PI) / 180);
-               ctx.globalAlpha = text.opacity / 100;
+            // Draw text overlays - position relative to zoomed image
+            textOverlays.forEach(text => {
+              ctx.save();
+              // Position text relative to the zoomed image dimensions
+              const textX = text.x * canvas.width / 100;
+              const textY = text.y * canvas.height / 100;
+              ctx.translate(textX, textY);
+              ctx.rotate((text.rotation * Math.PI) / 180);
+              ctx.globalAlpha = text.opacity / 100;
 
-               // Scale font size relative to zoomed image
-               const fontSize = (text.fontSize * canvas.width) / 1000;
-               ctx.font = `${text.bold ? 'bold' : 'normal'} ${text.italic ? 'italic' : 'normal'} ${fontSize}px ${text.fontFamily}`;
-               ctx.fillStyle = text.color;
-               ctx.textAlign = 'center';
-               ctx.textBaseline = 'middle';
+              // Scale font size relative to zoomed image
+              const fontSize = (text.fontSize * canvas.width) / 1000;
+              ctx.font = `${text.bold ? 'bold' : 'normal'} ${text.italic ? 'italic' : 'normal'} ${fontSize}px ${text.fontFamily}`;
+              ctx.fillStyle = text.color;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
 
-               if (text.shadow) {
-                 ctx.shadowColor = text.shadowColor;
-                 ctx.shadowBlur = text.shadowBlur;
-                 ctx.shadowOffsetX = text.shadowOffsetX;
-                 ctx.shadowOffsetY = text.shadowOffsetY;
-               }
+              if (text.shadow) {
+                ctx.shadowColor = text.shadowColor;
+                ctx.shadowBlur = text.shadowBlur;
+                ctx.shadowOffsetX = text.shadowOffsetX;
+                ctx.shadowOffsetY = text.shadowOffsetY;
+              }
 
-               ctx.fillText(text.text, 0, 0);
-               ctx.restore();
-             });
-            
+              ctx.fillText(text.text, 0, 0);
+              ctx.restore();
+            });
+
             ctx.restore();
           }
 
@@ -769,20 +769,20 @@ export default function EnhancedImageEditor({
   const handleSave = async () => {
     try {
       setIsProcessing(true);
-      
+
       // Apply all changes to get the final edited image
       const finalImage = await applyAllChanges();
-      
+
       // Update the image in the main customizer
       onImageChange(finalImage);
-      
+
       // Show success toast
       toast({
         title: "Changes Applied",
         description: "Image has been updated with all customizations applied.",
         duration: 3000,
       });
-      
+
       // Close the editor
       onClose();
     } catch (error) {
@@ -813,27 +813,27 @@ export default function EnhancedImageEditor({
     };
     setAdjustments(defaultAdjustments);
     onAdjustmentsChange?.(defaultAdjustments);
-    
+
     // Reset filters and transformations
     setSelectedFilter('none');
     onFilterChange?.('none');
     onZoomChange?.(1);
     onImagePositionChange?.({ x: 0, y: 0 });
-    
+
     // Reset text overlays
     setTextOverlays([]);
     onTextOverlaysChange?.([]);
     setSelectedTextId(null);
-    
+
     // Reset crop
     setCropArea(null);
     onCropChange?.(null);
-    
+
     // Reset crop mode and dragging state
     setCropMode('select');
     setIsDraggingCrop(false);
     setResizeHandle(null);
-    
+
     // Reset text settings
     setTextSettings({
       fontSize: 24,
@@ -847,7 +847,7 @@ export default function EnhancedImageEditor({
       shadowOffsetX: 2,
       shadowOffsetY: 2,
     });
-    
+
     // Reset to original image (remove all edits)
     if (imageSrc) {
       setCurrentImage(imageSrc);
@@ -855,17 +855,17 @@ export default function EnhancedImageEditor({
       // Call parent's reset callback to restore original image
       onReset?.();
     }
-    
+
     // Update live preview after reset
     updateLivePreview();
-    
+
     // Show success toast
     toast({
       title: "Settings Reset",
       description: "All image settings have been reset to default values.",
       duration: 3000,
     });
-    
+
     // Call the reset callback to update parent component state
     onReset?.();
   };
@@ -907,18 +907,18 @@ export default function EnhancedImageEditor({
           <div className="flex-1 flex flex-col min-h-0">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b bg-white flex-shrink-0">
-                              <div className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5" />
-                  <h2 className="text-lg font-semibold">Enhanced Image Editor</h2>
-                  <Badge variant="secondary">{mousepadSize}</Badge>
-                  {enableLivePreview && (
-                    <Badge variant="outline" className="text-xs">
-                      <Eye className="h-3 w-3 mr-1" />
-                      Preview Only
-                    </Badge>
-                  )}
-                </div>
-              
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                <h2 className="text-lg font-semibold">Enhanced Image Editor</h2>
+                <Badge variant="secondary">{mousepadSize}</Badge>
+                {enableLivePreview && (
+                  <Badge variant="outline" className="text-xs">
+                    <Eye className="h-3 w-3 mr-1" />
+                    Preview Only
+                  </Badge>
+                )}
+              </div>
+
               <div className="flex items-center gap-2">
                 <TooltipProvider>
                   <Tooltip>
@@ -952,40 +952,39 @@ export default function EnhancedImageEditor({
                     <div className="relative w-full h-[500px] bg-black rounded-lg overflow-hidden">
                       {currentImage ? (
                         <>
-                                                     {/* Image container */}
-                                                     <div 
+                          {/* Image container */}
+                          <div
                             ref={imageContainerRef}
                             className="relative w-full h-full flex items-center justify-center select-none"
                             onMouseMove={handleCropMouseMove}
                             onMouseUp={handleCropMouseUp}
                           >
                             <div className="relative">
-                                                             <img
-                                 ref={imageRef}
-                                 src={processedImage || currentImage}
-                                 alt="Image preview"
-                                 className="max-w-full max-h-full object-contain"
-                                 style={{
-                                   transform: `scale(${zoom}) translate(${imagePosition.x}%, ${imagePosition.y}%)`,
-                                 }}
-                               />
-                              
-                                                             {/* Text Overlays Preview */}
-                               {textOverlays.map((text) => (
-                                 <div
-                                   key={text.id}
-                                   className={`absolute cursor-move ${
-                                     selectedTextId === text.id ? 'ring-2 ring-blue-500' : ''
-                                   }`}
-                                   style={{
-                                     left: `${text.x}%`,
-                                     top: `${text.y}%`,
-                                     transform: `translate(-50%, -50%) rotate(${text.rotation}deg)`,
-                                     opacity: text.opacity / 100,
-                                   }}
-                                   onMouseDown={(e) => handleTextMouseDown(e, text.id)}
-                                   onClick={() => setSelectedTextId(text.id)}
-                                 >
+                              <img
+                                ref={imageRef}
+                                src={processedImage || currentImage}
+                                alt="Image preview"
+                                className="max-w-full max-h-full object-contain"
+                                style={{
+                                  transform: `scale(${zoom}) translate(${imagePosition.x}%, ${imagePosition.y}%)`,
+                                }}
+                              />
+
+                              {/* Text Overlays Preview */}
+                              {textOverlays.map((text) => (
+                                <div
+                                  key={text.id}
+                                  className={`absolute cursor-move ${selectedTextId === text.id ? 'ring-2 ring-blue-500' : ''
+                                    }`}
+                                  style={{
+                                    left: `${text.x}%`,
+                                    top: `${text.y}%`,
+                                    transform: `translate(-50%, -50%) rotate(${text.rotation}deg)`,
+                                    opacity: text.opacity / 100,
+                                  }}
+                                  onMouseDown={(e) => handleTextMouseDown(e, text.id)}
+                                  onClick={() => setSelectedTextId(text.id)}
+                                >
                                   <div
                                     style={{
                                       fontFamily: text.fontFamily,
@@ -1003,7 +1002,7 @@ export default function EnhancedImageEditor({
                                 </div>
                               ))}
                             </div>
-                            
+
                             {/* Crop Overlay */}
                             {activeTab === 'crop' && cropArea && (
                               <div className="absolute inset-0">
@@ -1018,7 +1017,7 @@ export default function EnhancedImageEditor({
                                   }}
                                   onMouseDown={(e) => handleCropMouseDown(e)}
                                 />
-                                
+
                                 {/* Resize handles */}
                                 {cropArea && (
                                   <>
@@ -1055,7 +1054,7 @@ export default function EnhancedImageEditor({
                                       }}
                                       onMouseDown={(e) => handleCropMouseDown(e, 'se')}
                                     />
-                                    
+
                                     {/* Edge handles */}
                                     <div
                                       className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-n-resize"
@@ -1091,17 +1090,17 @@ export default function EnhancedImageEditor({
                                     />
                                   </>
                                 )}
-                                
+
                                 {/* Crop instructions */}
                                 <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {cropMode === 'move' ? 'Drag to move crop area' : 
-                                   cropMode === 'resize' ? 'Drag handles to resize' : 
-                                   'Click Start Crop to begin'}
+                                  {cropMode === 'move' ? 'Drag to move crop area' :
+                                    cropMode === 'resize' ? 'Drag handles to resize' :
+                                      'Click Start Crop to begin'}
                                 </div>
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Debug info */}
                           <div className="absolute top-2 right-2 bg-black bg-opacity-50 rounded p-2 text-white text-xs">
                             <div>Zoom: {Math.round(zoom * 100)}%</div>
@@ -1134,9 +1133,9 @@ export default function EnhancedImageEditor({
                     <TabsTrigger value="crop" className="text-xs">
                       <Crop className="h-3 w-3" />
                     </TabsTrigger>
-                    <TabsTrigger value="text" className="text-xs">
+                    {/* <TabsTrigger value="text" className="text-xs hidden">
                       <Type className="h-3 w-3" />
-                    </TabsTrigger>
+                    </TabsTrigger> */}
                   </TabsList>
 
                   <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(95vh-200px)]">
@@ -1145,7 +1144,7 @@ export default function EnhancedImageEditor({
                       <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
                         💡 <strong>Preview Mode:</strong> Changes are only shown in this editor. Click "Apply & Save" to apply to main customizer.
                       </div>
-                      
+
                       <div>
                         <Label className="text-sm font-medium">Zoom</Label>
                         <div className="flex items-center gap-2">
@@ -1342,11 +1341,11 @@ export default function EnhancedImageEditor({
                             key={filter.name}
                             variant={selectedFilter === filter.value ? 'default' : 'outline'}
                             size="sm"
-                                                         onClick={() => {
-                               setSelectedFilter(filter.value);
-                               onFilterChange?.(filter.value);
-                               updateLivePreview();
-                             }}
+                            onClick={() => {
+                              setSelectedFilter(filter.value);
+                              onFilterChange?.(filter.value);
+                              updateLivePreview();
+                            }}
                             className="h-16 flex flex-col items-center justify-center text-xs"
                           >
                             <div className="w-8 h-8 bg-gray-200 rounded mb-1" />
@@ -1361,7 +1360,7 @@ export default function EnhancedImageEditor({
                       <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
                         💡 <strong>Crop Tool:</strong> Use the 8 handles to resize and move the crop area
                       </div>
-                      
+
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm font-medium">Crop Image</Label>
@@ -1396,14 +1395,14 @@ export default function EnhancedImageEditor({
                             )}
                           </div>
                         </div>
-                        
+
                         <div className="text-xs text-gray-600 space-y-1">
                           <p>• Click "Start Crop" to begin</p>
                           <p>• Drag the 8 handles to resize</p>
                           <p>• Drag inside the area to move</p>
                           <p>• Click "Apply Crop" to confirm</p>
                         </div>
-                        
+
                         {cropArea && (
                           <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
                             <div>Crop Area: {Math.round(cropArea.x)}%, {Math.round(cropArea.y)}%</div>
@@ -1414,7 +1413,7 @@ export default function EnhancedImageEditor({
                     </TabsContent>
 
                     {/* Text Tab */}
-                    <TabsContent value="text" className="space-y-4">
+                    <TabsContent value="text" className="space-y-4 hidden">
                       <Button
                         onClick={() => setShowTextEditor(true)}
                         className="w-full"
@@ -1429,9 +1428,8 @@ export default function EnhancedImageEditor({
                           {textOverlays.map((text) => (
                             <div
                               key={text.id}
-                              className={`p-2 border rounded cursor-pointer ${
-                                selectedTextId === text.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                              }`}
+                              className={`p-2 border rounded cursor-pointer ${selectedTextId === text.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                                }`}
                               onClick={() => setSelectedTextId(text.id)}
                             >
                               <div className="flex items-center justify-between">
@@ -1474,7 +1472,7 @@ export default function EnhancedImageEditor({
                       {selectedTextId && (
                         <div className="space-y-3 pt-4 border-t">
                           <Label className="text-sm font-medium">Text Properties</Label>
-                          
+
                           <div>
                             <Label className="text-xs">Text Content</Label>
                             <Input
@@ -1654,7 +1652,7 @@ export default function EnhancedImageEditor({
                                   />
                                 </div>
                               </div>
-                              
+
                               <div>
                                 <Label className="text-xs">Shadow Blur</Label>
                                 <div className="flex items-center gap-2">
@@ -1706,7 +1704,7 @@ export default function EnhancedImageEditor({
                   placeholder="Enter your text..."
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Font Size</Label>
@@ -1719,7 +1717,7 @@ export default function EnhancedImageEditor({
                     className="mt-2"
                   />
                 </div>
-                
+
                 <div>
                   <Label>Color</Label>
                   <div className="flex items-center gap-2">
@@ -1766,7 +1764,7 @@ export default function EnhancedImageEditor({
                   />
                   <Label>Bold</Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Switch
                     checked={textSettings.italic}
@@ -1774,7 +1772,7 @@ export default function EnhancedImageEditor({
                   />
                   <Label>Italic</Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Switch
                     checked={textSettings.shadow}
@@ -1824,8 +1822,8 @@ export default function EnhancedImageEditor({
                 <Button variant="outline" onClick={() => setShowResetConfirm(false)}>
                   Cancel
                 </Button>
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={() => {
                     resetAdjustments();
                     setShowResetConfirm(false);

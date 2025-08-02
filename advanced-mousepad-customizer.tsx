@@ -228,17 +228,59 @@ export default function AdvancedMousepadCustomizer() {
   // Function to capture the complete customized design
   const captureCompleteDesign = async () => {
     try {
-      // If we have an edited image from the enhanced editor, use it directly
-      if (editedImage) {
-        console.log('Using edited image from enhanced editor');
-        return editedImage;
-      }
+      console.log('Starting complete design capture...');
+      console.log('Current state:', {
+        editedImage: !!editedImage,
+        uploadedImage: !!uploadedImage,
+        selectedTemplate: !!selectedTemplate,
+        textElements: textElements.length,
+        imageTextOverlays: imageTextOverlays.length,
+        appliedOverlays: appliedOverlays.length,
+        mousepadType,
+        rgbMode,
+        rgbColor,
+        rgbBrightness
+      });
+
+      // Always use canvas method for guaranteed capture of all elements
+      // This ensures RGB effects, overlays, text, and borders are all captured
+      const baseImage = editedImage || uploadedImage || selectedTemplate?.overlay;
       
-      // Otherwise, use canvas method for guaranteed text and RGB capture
-      const baseImage = uploadedImage;
       if (baseImage) {
-        console.log('Using canvas method to ensure text and RGB capture');
-        return await createCanvasWithText(baseImage, textElements);
+        console.log('Using enhanced canvas method to capture complete design');
+        
+        // Combine all text elements (both types)
+        const allTextElements = [
+          ...textElements.map(el => ({ ...el, source: 'main' })),
+          ...imageTextOverlays.map(el => ({ 
+            ...el, 
+            source: 'image',
+            type: 'text',
+            position: { x: el.x, y: el.y },
+            text: el.text,
+            size: el.fontSize,
+            font: el.fontFamily,
+            color: el.color,
+            rotation: el.rotation,
+            opacity: el.opacity,
+            bold: el.bold,
+            italic: el.italic,
+            shadow: el.shadow ? {
+              enabled: true,
+              color: el.shadowColor,
+              blur: el.shadowBlur,
+              x: el.shadowOffsetX,
+              y: el.shadowOffsetY
+            } : { enabled: false }
+          }))
+        ];
+        
+        console.log('Combined text elements:', allTextElements.length);
+        
+        // Create the complete image with all customizations
+        const finalImage = await createCanvasWithText(baseImage, allTextElements);
+        console.log('Canvas capture completed successfully');
+        return finalImage;
       }
 
       // Fallback to html2canvas if no base image
@@ -255,12 +297,12 @@ export default function AdvancedMousepadCustomizer() {
       }
 
       // Wait a bit for any animations to complete
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Use html2canvas to capture the entire preview with all customizations
       const canvas = await html2canvas(previewContainer as HTMLElement, {
         backgroundColor: null,
-        scale: 3, // Very high quality for better detail
+        scale: 4, // Very high quality for better detail
         useCORS: true,
         allowTaint: true,
         width: previewContainer.clientWidth,
@@ -294,7 +336,7 @@ export default function AdvancedMousepadCustomizer() {
     } catch (error) {
       console.error('Error capturing complete design:', error);
       // Final fallback to base image
-      return editedImage || uploadedImage || "/placeholder.svg";
+      return editedImage || uploadedImage || selectedTemplate?.overlay || "/placeholder.svg";
     }
   }
 
@@ -355,6 +397,10 @@ export default function AdvancedMousepadCustomizer() {
         console.log('Canvas size:', canvas.width, 'x', canvas.height);
         console.log('Text elements to render:', textElements.length);
         console.log('RGB mode:', mousepadType, rgbMode, rgbColor, rgbBrightness);
+        console.log('Image adjustments:', imageAdjustments);
+        console.log('Image filter:', imageFilter);
+        console.log('Image zoom:', imageZoom);
+        console.log('Image position:', imagePosition);
 
         // Ensure minimum size for visibility
         const minSize = 200;
@@ -365,8 +411,37 @@ export default function AdvancedMousepadCustomizer() {
           console.log('Scaled canvas size:', canvas.width, 'x', canvas.height);
         }
 
-        // Draw base image (scaled if necessary)
+        // Apply image adjustments and filters before drawing
         if (ctx) {
+          // Apply CSS filters for adjustments
+          if (imageAdjustments) {
+            ctx.filter = `
+              brightness(${imageAdjustments.brightness}%)
+              contrast(${imageAdjustments.contrast}%)
+              saturate(${imageAdjustments.saturation}%)
+              blur(${imageAdjustments.blur}px)
+              ${imageFilter !== 'none' ? imageFilter : ''}
+            `;
+          }
+
+          // Apply zoom and position transformations
+          ctx.save();
+          
+          // Center the image
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          
+          // Apply zoom
+          ctx.translate(centerX, centerY);
+          ctx.scale(imageZoom || 1, imageZoom || 1);
+          ctx.translate(-centerX, -centerY);
+          
+          // Apply position offset
+          const offsetX = (imagePosition?.x || 0) * canvas.width / 100;
+          const offsetY = (imagePosition?.y || 0) * canvas.height / 100;
+          ctx.translate(offsetX, offsetY);
+
+          // Draw base image (scaled if necessary)
           if (canvas.width === img.width && canvas.height === img.height) {
             // No scaling needed
             ctx.drawImage(img, 0, 0);
@@ -374,6 +449,8 @@ export default function AdvancedMousepadCustomizer() {
             // Scale the image to fit the canvas
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           }
+          
+          ctx.restore();
         }
 
         // Draw template overlays function
@@ -583,15 +660,17 @@ export default function AdvancedMousepadCustomizer() {
 
         // Draw text overlays with all customization details
         textElements.forEach((element, index) => {
-          if (ctx && element.type === 'text') {
+          if (ctx && (element.type === 'text' || element.source === 'image')) {
             console.log(`Rendering text element ${index}:`, element.text, 'at position:', element.position);
 
-            // Set font with proper weight and larger size for better visibility
-            const fontWeight = element.font === "Orbitron" || element.font === "Audiowide" ? "bold" : "normal";
-            const fontSize = Math.max(element.size * 1.5, 18); // Increase size by 50% and minimum 18px
-            ctx.font = `${fontWeight} ${fontSize}px ${element.font}`;
+            // Set font with proper weight and size
+            const fontWeight = element.bold || element.font === "Orbitron" || element.font === "Audiowide" ? "bold" : "normal";
+            const fontStyle = element.italic ? "italic" : "normal";
+            const fontSize = Math.max((element.size || element.fontSize) * 1.5, 18); // Increase size by 50% and minimum 18px
+            const fontFamily = element.font || element.fontFamily || 'Arial';
+            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
 
-            // Handle gradient text
+            // Handle gradient text (only for main text elements)
             if (element.gradient?.enabled) {
               const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
               gradient.addColorStop(0, element.gradient.from);
@@ -610,7 +689,7 @@ export default function AdvancedMousepadCustomizer() {
 
             ctx.save();
             ctx.translate(x, y);
-            ctx.rotate((element.rotation * Math.PI) / 180);
+            ctx.rotate(((element.rotation || 0) * Math.PI) / 180);
 
             // Apply opacity
             ctx.globalAlpha = (element.opacity || 100) / 100;
@@ -623,7 +702,7 @@ export default function AdvancedMousepadCustomizer() {
               ctx.shadowOffsetY = element.shadow.y || 0;
             }
 
-            // Draw text outline if enabled
+            // Draw text outline if enabled (only for main text elements)
             if (element.outline?.enabled) {
               ctx.strokeStyle = element.outline.color || '#ffffff';
               ctx.lineWidth = element.outline.width || 1;
@@ -640,7 +719,7 @@ export default function AdvancedMousepadCustomizer() {
 
         // Draw overlays LAST to ensure they're on top
         drawOverlays().then(() => {
-          console.log('Canvas rendering completed');
+          console.log('Canvas rendering completed with all elements');
           resolve(canvas.toDataURL('image/png', 1.0));
         }).catch((error) => {
           console.error('Error drawing overlays:', error);
@@ -665,6 +744,79 @@ export default function AdvancedMousepadCustomizer() {
 
   // Add a new state to track the main image source (uploaded or template)
   const [mainImage, setMainImage] = useState<string | null>(null)
+
+  // Function to generate a sample customized mousepad image
+  const generateSampleCustomizedImage = async (): Promise<string> => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size based on mousepad size (horizontal orientation)
+    const sizeMap: { [key: string]: { width: number; height: number } } = {
+      '900x400': { width: 900, height: 400 },
+      '800x300': { width: 800, height: 300 },
+      '700x250': { width: 700, height: 250 },
+      '600x200': { width: 600, height: 200 }
+    };
+    
+    const size = sizeMap[mousepadSize] || { width: 900, height: 400 };
+    canvas.width = size.width;
+    canvas.height = size.height;
+    
+    if (ctx) {
+      // Create gradient background
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Add RGB border effect if RGB mode
+      if (mousepadType === 'rgb') {
+        ctx.save();
+        ctx.strokeStyle = rgbColor || '#ff0000';
+        ctx.lineWidth = 20;
+        ctx.globalAlpha = 0.8;
+        ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+        ctx.restore();
+      }
+      
+      // Add sample text
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('CUSTOM MOUSEPAD', canvas.width / 2, canvas.height / 2 - 30);
+      
+      ctx.font = '24px Arial';
+      ctx.fillText(`${mousepadSize} • ${thickness}mm`, canvas.width / 2, canvas.height / 2 + 20);
+      
+      if (mousepadType === 'rgb') {
+        ctx.fillText(`RGB ${rgbMode.toUpperCase()}`, canvas.width / 2, canvas.height / 2 + 50);
+      }
+      ctx.restore();
+      
+      // Add corner decorations
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(50, 50, 30, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(canvas.width - 50, 50, 30, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(50, canvas.height - 50, 30, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(canvas.width - 50, canvas.height - 50, 30, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
+    
+    return canvas.toDataURL('image/png', 0.95);
+  };
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -1653,6 +1805,16 @@ export default function AdvancedMousepadCustomizer() {
                               size="lg"
                               onClick={async () => {
                                 try {
+                                  // Show loading state
+                                  if (toast) {
+                                    toast({
+                                      title: "Processing...",
+                                      description: "Capturing your complete design with all customizations...",
+                                      duration: 3000,
+                                    });
+                                  }
+
+                                  console.log('Starting complete design capture for cart...');
                                   console.log('Capturing design with text elements:', textElements);
                                   console.log('RGB settings before capture:', {
                                     mousepadType,
@@ -1663,6 +1825,11 @@ export default function AdvancedMousepadCustomizer() {
                                   });
                                   console.log('Applied overlays:', appliedOverlays);
                                   console.log('Selected template:', selectedTemplate);
+                                  console.log('Image adjustments:', imageAdjustments);
+                                  console.log('Image filter:', imageFilter);
+                                  console.log('Text elements:', textElements.length);
+                                  console.log('Image text overlays:', imageTextOverlays.length);
+
                                   const finalImage = await captureCompleteDesign();
                                   console.log('Capture completed, image length:', finalImage?.length || 0);
                                   console.log('Final image type:', typeof finalImage);
@@ -1706,11 +1873,12 @@ export default function AdvancedMousepadCustomizer() {
                                     originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                     configuration: captureConfigurationData(),
                                   });
+                                  
                                   if (toast) {
                                     toast({
                                       title: "Added to Cart!",
-                                      description: "Your custom mousepad has been added to the cart.",
-                                      duration: 2000,
+                                      description: "Your complete custom design has been captured and added to the cart.",
+                                      duration: 3000,
                                     });
                                   }
                                   setSideCartOpen(true);
@@ -2356,7 +2524,14 @@ export default function AdvancedMousepadCustomizer() {
                                 });
                                 console.log('Applied overlays:', appliedOverlays);
                                 console.log('Selected template:', selectedTemplate);
-                                const finalImage = await captureCompleteDesign();
+                                let finalImage = await captureCompleteDesign();
+                                
+                                // If no custom image is available, generate a sample image
+                                if (!finalImage || finalImage === '/placeholder.svg') {
+                                  console.log('No custom image found, generating sample image');
+                                  finalImage = await generateSampleCustomizedImage();
+                                }
+                                
                                 console.log('Capture completed, image length:', finalImage?.length || 0);
                                 console.log('Final image type:', typeof finalImage);
                                 console.log('Final image is valid:', !!finalImage);
@@ -2409,7 +2584,24 @@ export default function AdvancedMousepadCustomizer() {
                                 setSideCartOpen(true);
                               } catch (error) {
                                 console.error('Error adding to cart:', error);
-                                // Fallback to base image if capture fails
+                                
+                                if (toast) {
+                                  toast({
+                                    title: "Warning",
+                                    description: "Could not capture complete design. Generating sample image.",
+                                    variant: "destructive",
+                                    duration: 4000,
+                                  });
+                                }
+                                
+                                // Generate sample image as fallback
+                                let fallbackImage = "/placeholder.svg";
+                                try {
+                                  fallbackImage = await generateSampleCustomizedImage();
+                                } catch (genError) {
+                                  console.error('Failed to generate sample image:', genError);
+                                }
+                                
                                 const fallbackBasePrice = getBaseMousepadPrice({
                                   mousepadSize,
                                   thickness,
@@ -2421,7 +2613,7 @@ export default function AdvancedMousepadCustomizer() {
                                   id: Date.now().toString() + Math.random().toString(36).slice(2),
                                   name: "Custom Mousepad",
                                   image: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
-                                  finalImage: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
+                                  finalImage: fallbackImage,
                                   specs: {
                                     type: mousepadType,
                                     size: mousepadSize,
@@ -2445,6 +2637,7 @@ export default function AdvancedMousepadCustomizer() {
                                   originalImageUrl: uploadedImage || selectedTemplate?.overlay || "/placeholder.svg",
                                   configuration: captureConfigurationData(),
                                 });
+                                
                                 if (toast) {
                                   toast({
                                     title: "Added to Cart!",

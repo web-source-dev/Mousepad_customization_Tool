@@ -1,9 +1,10 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from './button';
 import { useCart } from './cart-context';
-import { X, Settings, Image, Type, Palette, RotateCcw } from 'lucide-react';
+import { X, Settings, Image, Type, Palette, RotateCcw, ZoomIn } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './dialog';
 
 interface SideCartProps {
   open: boolean;
@@ -13,6 +14,8 @@ interface SideCartProps {
 export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
   const { items, removeItem, getItemTotalPrice, getCartSubtotal, regenerateItemImage } = useCart();
   const subtotal = getCartSubtotal();
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; itemName: string } | null>(null);
 
   // Helper function to safely render spec values
   const renderSpecValue = (value: unknown): string | null => {
@@ -68,14 +71,27 @@ export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
         )}
         
         {/* Overlays */}
-        {config.appliedOverlays?.length > 0 && (
+        {(config.appliedOverlays?.length > 0 || config.selectedTemplate) && (
           <div className="flex items-center gap-1">
             <Image className="h-3 w-3" />
-            <span>{config.appliedOverlays.length} overlay{config.appliedOverlays.length !== 1 ? 's' : ''}</span>
+            <span>
+              {config.selectedTemplate ? 'Gaming Template' : ''}
+              {config.appliedOverlays?.length > 0 && (
+                <>
+                  {config.selectedTemplate ? ' + ' : ''}
+                  {config.appliedOverlays.length} overlay{config.appliedOverlays.length !== 1 ? 's' : ''}
+                </>
+              )}
+            </span>
           </div>
         )}
       </div>
     );
+  };
+
+  const handleImageClick = (imageSrc: string, itemName: string) => {
+    setSelectedImage({ src: imageSrc, alt: itemName, itemName });
+    setImageModalOpen(true);
   };
 
   return (
@@ -97,11 +113,19 @@ export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
             <div className="space-y-4">
               {items.map((item) => (
                 <div key={item.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                  <img 
-                    src={item.finalImage || item.image || '/placeholder.svg'} 
-                    alt={item.name}
-                    className="w-16 h-16 object-cover rounded"
-                  />
+                  <div 
+                    className="w-16 h-16 relative overflow-hidden rounded cursor-pointer hover:scale-105 transition-transform duration-200 group"
+                    onClick={() => handleImageClick(item.finalImage || item.image || '/placeholder.svg', item.name)}
+                  >
+                    <img 
+                      src={item.finalImage || item.image || '/placeholder.svg'} 
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                      <ZoomIn className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                    </div>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{item.name}</div>
                     <div className="text-xs text-gray-500 mt-1">
@@ -165,6 +189,38 @@ export const SideCart: React.FC<SideCartProps> = ({ open, onClose }) => {
           <Button className="w-full mb-2" size="lg" disabled={items.length === 0} onClick={() => { window.location.href = '/cart'; }}>View Cart</Button>
         </div>
       </div>
+
+      {/* Image Modal */}
+      <Dialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-lg font-semibold">
+                {selectedImage?.itemName}
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setImageModalOpen(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-4 bg-gray-50 min-h-[400px]">
+            {selectedImage && (
+              <div className="relative max-w-full max-h-full">
+                <img
+                  src={selectedImage.src}
+                  alt={selectedImage.alt}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }; 

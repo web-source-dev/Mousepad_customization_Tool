@@ -3,8 +3,9 @@ import { useCart } from "@/components/ui/cart-context";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Plus, Minus, RotateCcw } from "lucide-react";
+import { Trash2, Plus, Minus, RotateCcw, X, ZoomIn } from "lucide-react";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
@@ -21,6 +22,8 @@ export default function CartPage() {
   const [checkingOut, setCheckingOut] = React.useState(false);
   const [showUserDetailsForm, setShowUserDetailsForm] = React.useState(false);
   const [wixUser, setWixUser] = useState<WixUser>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; itemName: string } | null>(null);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -81,36 +84,93 @@ export default function CartPage() {
 
   const handleUserDetailsSubmit = async (userDetails: any) => {
     try {
+      console.log('Starting checkout process with user details:', userDetails);
+      console.log('Cart items to process:', items.length);
+
       // Collect all item data including customized images
       const itemsWithImages = await Promise.all(
-        items.map(async (item) => {
+        items.map(async (item, index) => {
+          console.log(`Processing item ${index + 1}: ${item.name}`);
+          
           // Get the original uploaded image URL
           const originalImageUrl = item.image;
           
-          // Get the customized image base64 (if available in specs)
-          let customizedImageBase64 = null;
+          // Get the customized image - prioritize finalImage over image
+          let customizedImageBase64 = item.finalImage || item.image;
           
-          // Check if the item has a customized image in its specs
-          if (item.specs && item.specs.customizedImage) {
-            customizedImageBase64 = item.specs.customizedImage;
-          } else {
-            // If no customized image is stored, try to generate it from the current image
-            // This is a fallback in case the customization wasn't saved properly
-            customizedImageBase64 = originalImageUrl;
+          // Ensure we have base64 data for the customized image
+          if (customizedImageBase64 && !customizedImageBase64.startsWith('data:image')) {
+            console.log(`Item ${index + 1}: Converting image to base64`);
+            try {
+              // Convert image URL to base64 if it's not already
+              const response = await fetch(customizedImageBase64);
+              const blob = await response.blob();
+              const base64 = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+              });
+              customizedImageBase64 = base64 as string;
+            } catch (error) {
+              console.error(`Failed to convert image to base64 for item ${index + 1}:`, error);
+              customizedImageBase64 = item.image; // Fallback to original
+            }
           }
 
-          return {
-            ...item,
-            originalImageUrl,
-            customizedImageBase64,
-            // Include all specs data
+          // Prepare item data for Wix
+          const processedItem = {
+            id: item.id,
+            name: item.name,
+            price: parseFloat(item.price.toFixed(2)),
+            quantity: item.quantity,
+            currency: item.currency || 'USD',
+            image: originalImageUrl,
+            finalImage: customizedImageBase64,
             specs: {
-              ...item.specs,
-              // Ensure we have the image data
-              originalImageUrl,
-              customizedImageBase64
+              type: item.specs?.type || item.configuration?.mousepadType || 'standard',
+              size: item.specs?.size || item.configuration?.mousepadSize || '900x400',
+              thickness: item.specs?.thickness || item.configuration?.thickness || '3',
+              rgb: item.specs?.rgb || (item.configuration?.rgb ? {
+                mode: item.configuration.rgb.mode,
+                color: item.configuration.rgb.color,
+                brightness: item.configuration.rgb.brightness,
+                animationSpeed: item.configuration.rgb.animationSpeed
+              } : null),
+              text: item.specs?.text || item.configuration?.textElements || [],
+              overlays: item.specs?.overlays || item.configuration?.appliedOverlays || [],
+              adjustments: item.specs?.adjustments || item.configuration?.imageSettings?.adjustments || null,
+              filter: item.specs?.filter || item.configuration?.imageSettings?.filter || 'none',
+              zoom: item.specs?.zoom || item.configuration?.imageSettings?.zoom || 1,
+              imagePosition: item.specs?.imagePosition || item.configuration?.imageSettings?.position || { x: 0, y: 0 }
+            },
+            configuration: item.configuration || {
+              mousepadType: 'standard',
+              mousepadSize: '900x400',
+              thickness: '3',
+              textElements: [],
+              appliedOverlays: [],
+              imageSettings: {
+                uploadedImage: null,
+                editedImage: null,
+                originalImage: null,
+                zoom: 1,
+                position: { x: 0, y: 0 },
+                adjustments: {
+                  brightness: 100,
+                  contrast: 100,
+                  saturation: 100,
+                  blur: 0,
+                  sharpen: 0,
+                  gamma: 100
+                },
+                filter: 'none',
+                crop: null
+              }
             }
           };
+
+          console.log(`Item ${index + 1} processed successfully`);
+          return processedItem;
         })
       );
 
@@ -146,7 +206,7 @@ export default function CartPage() {
       if (typeof window !== "undefined" && window.parent) {
         window.parent.postMessage(
           {
-            type: "checkoutData",
+            type: "initiatePayment",
             payload: checkoutData,
           },
           "*"
@@ -180,6 +240,11 @@ export default function CartPage() {
     setShowUserDetailsForm(false);
   };
 
+  const handleImageClick = (imageSrc: string, itemName: string) => {
+    setSelectedImage({ src: imageSrc, alt: itemName, itemName });
+    setImageModalOpen(true);
+  };
+
   // Responsive: stack on mobile, side-by-side on desktop
   return (
     <div className="max-w-5xl mx-auto py-8 px-2 md:px-4">
@@ -203,7 +268,10 @@ export default function CartPage() {
                     <div className="space-y-4">
                       {items.slice(0, 4).map((item) => (
                         <div key={item.id} className="flex gap-3 p-3 border rounded-lg">
-                          <div className="w-16 h-16 relative flex-shrink-0 overflow-hidden rounded border bg-white">
+                          <div 
+                            className="w-16 h-16 relative flex-shrink-0 overflow-hidden rounded border bg-white cursor-pointer hover:scale-105 transition-transform duration-200 group"
+                            onClick={() => handleImageClick(item.finalImage || item.image || '/placeholder.svg', item.name)}
+                          >
                             <Image 
                               src={item.finalImage || item.image || '/placeholder.svg'} 
                               alt={item.name} 
@@ -211,6 +279,9 @@ export default function CartPage() {
                               className="object-contain" 
                               unoptimized
                             />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                              <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                            </div>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">{item.name}</div>
@@ -227,9 +298,15 @@ export default function CartPage() {
                                 ✓ {item.configuration.textElements.length} text element{item.configuration.textElements.length !== 1 ? 's' : ''}
                               </div>
                             )}
-                            {item.configuration?.appliedOverlays?.length > 0 && (
+                            {(item.configuration?.appliedOverlays?.length > 0 || item.configuration?.selectedTemplate) && (
                               <div className="text-xs text-purple-600">
-                                ✓ {item.configuration.appliedOverlays.length} overlay{item.configuration.appliedOverlays.length !== 1 ? 's' : ''}
+                                ✓ {item.configuration?.selectedTemplate ? 'Gaming Template' : ''}
+                                {item.configuration?.appliedOverlays?.length > 0 && (
+                                  <>
+                                    {item.configuration?.selectedTemplate ? ' + ' : ''}
+                                    {item.configuration.appliedOverlays.length} overlay{item.configuration.appliedOverlays.length !== 1 ? 's' : ''}
+                                  </>
+                                )}
                               </div>
                             )}
                             {item.configuration?.rgb && (
@@ -283,7 +360,10 @@ export default function CartPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex gap-4 p-3 border rounded-lg">
-                      <div className="w-20 h-20 relative flex-shrink-0 overflow-hidden rounded border bg-white">
+                      <div 
+                        className="w-20 h-20 relative flex-shrink-0 overflow-hidden rounded border bg-white cursor-pointer hover:scale-105 transition-transform duration-200 group"
+                        onClick={() => handleImageClick(items[0].finalImage || items[0].image || '/placeholder.svg', items[0].name)}
+                      >
                         <Image 
                           src={items[0].finalImage || items[0].image || '/placeholder.svg'} 
                           alt={items[0].name} 
@@ -291,6 +371,9 @@ export default function CartPage() {
                           className="object-contain" 
                           unoptimized
                         />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                          <ZoomIn className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                        </div>
                       </div>
                       <div className="flex-1">
                         <div className="font-medium">{items[0].name}</div>
@@ -308,9 +391,15 @@ export default function CartPage() {
                               {items[0].configuration.textElements.length} text element{items[0].configuration.textElements.length !== 1 ? 's' : ''}
                             </span>
                           )}
-                          {items[0].configuration?.appliedOverlays?.length > 0 && (
+                          {(items[0].configuration?.appliedOverlays?.length > 0 || items[0].configuration?.selectedTemplate) && (
                             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
-                              {items[0].configuration.appliedOverlays.length} overlay{items[0].configuration.appliedOverlays.length !== 1 ? 's' : ''}
+                              {items[0].configuration?.selectedTemplate ? 'Gaming Template' : ''}
+                              {items[0].configuration?.appliedOverlays?.length > 0 && (
+                                <>
+                                  {items[0].configuration?.selectedTemplate ? ' + ' : ''}
+                                  {items[0].configuration.appliedOverlays.length} overlay{items[0].configuration.appliedOverlays.length !== 1 ? 's' : ''}
+                                </>
+                              )}
                             </span>
                           )}
                           {items[0].configuration?.rgb && (
@@ -360,12 +449,15 @@ export default function CartPage() {
               <div className="space-y-6">
                 {items.map((item) => (
                   <div key={item.id} className="flex flex-col sm:flex-row gap-4 items-center border-b pb-6 last:border-b-0 group">
-                    <div className="w-24 h-24 relative flex-shrink-0 overflow-hidden rounded-lg border bg-white">
+                    <div 
+                      className="w-24 h-24 relative flex-shrink-0 overflow-hidden rounded-lg border bg-white cursor-pointer hover:scale-105 transition-transform duration-200"
+                      onClick={() => handleImageClick(item.finalImage || item.image || '/placeholder.svg', item.name)}
+                    >
                       <Image 
                         src={item.finalImage || item.image || '/placeholder.svg'} 
                         alt={item.name} 
                         fill 
-                        className="object-contain group-hover:scale-105 transition-transform duration-200" 
+                        className="object-contain" 
                         style={{
                           padding: '1px',
                           backgroundColor: 'transparent',
@@ -373,6 +465,9 @@ export default function CartPage() {
                         }}
                         unoptimized
                       />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                        <ZoomIn className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0 w-full">
                       <div className="flex items-center justify-between gap-2">
@@ -447,10 +542,18 @@ export default function CartPage() {
                             </div>
                           )}
                           
-                          {item.configuration.appliedOverlays?.length > 0 && (
+                          {(item.configuration.appliedOverlays?.length > 0 || item.configuration.selectedTemplate) && (
                             <div className="flex items-center gap-1">
                               <span className="font-medium">Overlays:</span>
-                              <span>{item.configuration.appliedOverlays.length} applied</span>
+                              <span>
+                                {item.configuration.selectedTemplate ? 'Gaming Template' : ''}
+                                {item.configuration.appliedOverlays?.length > 0 && (
+                                  <>
+                                    {item.configuration.selectedTemplate ? ' + ' : ''}
+                                    {item.configuration.appliedOverlays.length} applied
+                                  </>
+                                )}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -568,6 +671,41 @@ export default function CartPage() {
       </div>
         </div>
       )}
+
+      {/* Image Modal */}
+      <Dialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-lg font-semibold">
+                {selectedImage?.itemName}
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setImageModalOpen(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-4 bg-gray-50 min-h-[400px]">
+            {selectedImage && (
+              <div className="relative max-w-full max-h-full">
+                <Image
+                  src={selectedImage.src}
+                  alt={selectedImage.alt}
+                  width={800}
+                  height={600}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                  unoptimized
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -1,279 +1,297 @@
+// frontend page code
+import wixWindow from 'wix-window';
+import wixPay from 'wix-pay';
 import wixData from 'wix-data';
 import wixUsers from 'wix-users';
-import wixWindow from 'wix-window';
+import { createCustomPayment } from 'backend/payments.jsw';
+import { uploadBase64Image } from 'backend/mediaUpload.jsw';
+import { sendEmail } from 'backend/email.jsw';
 
-let iframeElement;
-let isIframeReady = false;
-let pendingMessages = [];
+$w.onReady(async function () {
+    // Send user info to the iframe as soon as possible
+    const user = wixUsers.currentUser;
+    const userEmail = await user.getEmail();
+    const userId = user.id;
 
-$w.onReady(function () {
-    iframeElement = $w("#html1");
+    console.log("sending data")
+    let userData = {
+        type: "userInfo",
+        email: userEmail,
+        id: userId
+    }
+    // Send user info to the iframe
+    $w("#html1").postMessage(userData)
+    console.log("userData sent", userData)
 
-    iframeElement.onMessage(async (event) => {
-        console.log('📨 Wix received message from iframe:', event.data);
-        const { type, data, id } = event.data;
+    // Listen for messages from the iframe (checkout, etc.)
+    $w("#html1").onMessage(async (event) => {
+        const data = event.data;
+        console.log("receiving data", data)
 
-        try {
-            console.log('🔄 Processing message type:', type, 'with id:', id);
-            switch (type) {
-            case 'IFRAME_READY':
-                handleIframeReady();
-                break;
-            case 'USER_DATA_REQUEST':
-                await handleUserDataRequest(id);
-                break;
-            case 'ORDER_CREATED':
-                await handleOrderCreated(data, id);
-                break;
-            case 'CHECKOUT_DATA':
-                await handleCheckoutData(data, id);
-                break;
-            case 'ADMIN_ACTION':
-                await handleAdminAction(data, id);
-                break;
-            case 'UPDATE_ORDER_STATUS':
-                await handleUpdateOrderStatus(data, id);
-                break;
-            case 'FETCH_ORDERS':
-                await handleFetchOrders(id);
-                break;
-            default:
-                sendErrorToIframe("Unknown message type", id);
-            }
-        } catch (error) {
-            sendErrorToIframe(error.message, id);
+        if (data?.type === "requestUserInfo") {
+            // Handle user info request
+            console.log("Sending user info in response to request");
+            $w("#html1").postMessage({
+                type: "userInfo",
+                email: userEmail,
+                id: userId
+            });
+        }
+
+        if (data?.type === "initiatePayment") {
+            const checkoutData = data.payload;
+            console.log("Received payment initiation data:", checkoutData);
+            await startPaymentFlow(checkoutData);
         }
     });
 });
 
-function handleIframeReady() {
-    isIframeReady = true;
-    while (pendingMessages.length > 0) {
-        sendMessageToIframe(pendingMessages.shift());
-    }
-}
-
-function sendMessageToIframe(message) {
-    console.log('📤 Wix: Sending message to iframe:', message.type, message.id);
-    if (!iframeElement) {
-        console.warn('⚠️ Wix: No iframe element found');
-        return;
-    }
-    if (!isIframeReady) {
-        console.log('⏳ Wix: Iframe not ready, queuing message');
-        return pendingMessages.push(message);
-    }
-    console.log('✅ Wix: Sending message to iframe');
-    iframeElement.postMessage(message);
-}
-
-function sendErrorToIframe(errorMessage, messageId) {
-    sendMessageToIframe({
-        type: 'ERROR',
-        data: { error: errorMessage },
-        id: messageId
-    });
-}
-
-async function handleUserDataRequest(messageId) {
+async function startPaymentFlow(data) {
     try {
-        const currentUser = wixUsers.currentUser;
-        if (!currentUser.loggedIn) {
-            sendMessageToIframe({
-                type: 'USER_DATA_RESPONSE',
-                data: { user: null },
-                id: messageId
-            });
-            return;
+        // Round total to 2 decimal places
+        const total = parseFloat(parseFloat(data.total).toFixed(2));
+        if (isNaN(total)) {
+            throw new Error("Invalid total value from checkout data.");
         }
 
-        const email = await currentUser.getEmail();
-        const userData = {
-            id: currentUser.id,
-            email,
-            isLoggedIn: true
-        };
+        console.log("Starting payment flow with total:", total);
+        const paymentId = await createCustomPayment(total);
+        const result = await wixPay.startPayment(paymentId);
 
-        sendMessageToIframe({
-            type: 'USER_DATA_RESPONSE',
-            data: { user: userData },
-            id: messageId
+        const user = wixUsers.currentUser;
+        const userEmail = await user.getEmail();
+
+        if (result.status === 'Successful') {
+            console.log("Payment successful, saving order to database");
+            await saveOrderToDatabase(userEmail, data);
+
+            // Send success message to iframe
+            $w("#html1").postMessage({
+                type: "paymentSuccess",
+                orderId: data.orderId,
+                paymentId: paymentId
+            });
+
+        } else {
+            console.log("Payment was not successful, status:", result.status);
+            await saveOrderToDatabase(userEmail, data);
+            // Send failure message to iframe
+            $w("#html1").postMessage({
+                type: "paymentFailed",
+                reason: result.status || "Payment was not completed"
+            });
+        }
+    } catch (err) {
+        console.error("Error in payment flow:", err);
+
+        // Send failure message to iframe
+        $w("#html1").postMessage({
+            type: "paymentFailed",
+            reason: err.message || "Payment processing error"
         });
-    } catch {
-        sendErrorToIframe("Failed to fetch user data", messageId);
     }
 }
 
-async function handleOrderCreated(orderData, messageId) {
+async function saveOrderToDatabase(email, data) {
     try {
-        const order = await wixData.insert("Orders", {
-            email: orderData.email,
-            items: orderData.items,
-            shipping: orderData.shipping || 0,
-            subtotal: orderData.subtotal,
-            tax: orderData.tax,
-            total: orderData.total,
-            createdAt: new Date()
-        });
+        console.log("Starting to process order items for database save...");
 
-        sendMessageToIframe({
-            type: 'ORDER_CREATED_RESPONSE',
-            data: { success: true, orderId: order._id },
-            id: messageId
-        });
-    } catch {
-        sendErrorToIframe("Failed to create order", messageId);
-    }
-}
+        // Arrays to store image URLs for separate database columns
+        let baseImageUrls = [];
+        let finalImageUrls = [];
 
-async function handleCheckoutData(checkoutData, messageId) {
-    try {
-        sendMessageToIframe({
-            type: 'CHECKOUT_RESPONSE',
-            data: { success: true, message: "Checkout data received" },
-            id: messageId
-        });
-    } catch {
-        sendErrorToIframe("Failed to process checkout", messageId);
-    }
-}
+        // Process items and upload images first
+        const processedItems = await Promise.all(data.items.map(async (item, index) => {
+            console.log(`Processing item ${index + 1}/${data.items.length}: ${item.name}`);
 
-async function handleFetchOrders(messageId) {
-    try {
-        console.log('📋 Wix: Fetching orders from database...');
-        const orders = await wixData.query("Orders").ascending("createdAt").find();
-        console.log('📊 Wix: Found', orders.items.length, 'orders in database');
+            let imageUrl = "";
+            let finalImageUrl = "";
 
-        const transformedOrders = orders.items.map(order => ({
-            id: order._id,
-            orderId: order._id,
-            customerEmail: order.email,
-            orderDate: order.createdAt,
-            status: order.status || "pending",
-            total: order.total,
-            subtotal: order.subtotal,
-            tax: order.tax,
-            shipping: order.shipping,
-            items: order.items,
-            lastUpdated: order._updatedDate
+            // Upload base image if it's base64
+            if (item.image && item.image.startsWith('data:image')) {
+                try {
+                    console.log(`Uploading base image for item ${index + 1}...`);
+                    const uploaded = await uploadBase64Image(item.image, `${data.orderId}_item${index}_base`);
+                    imageUrl = uploaded?.fileUrl || "";
+                    console.log(`Base image uploaded successfully: ${imageUrl}`);
+                } catch (error) {
+                    console.error(`Base image upload failed for item ${index + 1}:`, error);
+                    imageUrl = "";
+                }
+            } else {
+                imageUrl = item.image || "";
+            }
+
+            // Upload final image if it's base64
+            if (item.finalImage && item.finalImage.startsWith('data:image')) {
+                try {
+                    console.log(`Uploading final image for item ${index + 1}...`);
+                    const uploaded = await uploadBase64Image(item.finalImage, `${data.orderId}_item${index}_final`);
+                    finalImageUrl = uploaded?.fileUrl || "";
+                    console.log(`Final image uploaded successfully: ${finalImageUrl}`);
+                } catch (error) {
+                    console.error(`Final image upload failed for item ${index + 1}:`, error);
+                    finalImageUrl = "";
+                }
+            } else {
+                finalImageUrl = item.finalImage || "";
+            }
+
+            // Store image URLs in separate arrays for database columns
+            baseImageUrls.push(imageUrl);
+            finalImageUrls.push(finalImageUrl);
+
+            // Create a minimal item object with only essential data (without image URLs)
+            const minimalItem = {
+                id: item.id,
+                name: item.name,
+                price: Number(item.price),
+                quantity: Number(item.quantity),
+                currency: item.currency || "USD",
+                // Only include essential specs and configuration
+                specs: {
+                    type: item.specs?.type || item.configuration?.mousepadType || "standard",
+                    size: item.specs?.size || item.configuration?.mousepadSize || "",
+                    thickness: item.specs?.thickness || item.configuration?.thickness || "",
+                    rgb: item.specs?.rgb || (item.configuration?.rgb ? true : false)
+                },
+                // Minimal configuration - only essential data
+                configuration: {
+                    mousepadType: item.configuration?.mousepadType || "standard",
+                    mousepadSize: item.configuration?.mousepadSize || "900x400",
+                    thickness: item.configuration?.thickness || "3",
+                    rgb: item.configuration?.rgb ? {
+                        mode: item.configuration.rgb.mode,
+                        color: item.configuration.rgb.color,
+                        brightness: item.configuration.rgb.brightness
+                    } : null,
+                    // Only count of elements, not full data
+                    textElementsCount: item.configuration?.textElements?.length || 0,
+                    appliedOverlaysCount: item.configuration?.appliedOverlays?.length || 0,
+                    hasCustomImage: !!(item.configuration?.imageSettings?.uploadedImage || item.configuration?.imageSettings?.editedImage)
+                }
+            };
+
+            console.log(`Item ${index + 1} processed successfully`);
+            return minimalItem;
         }));
 
-        console.log('✅ Wix: Sending', transformedOrders.length, 'orders to iframe');
-        sendMessageToIframe({
-            type: 'FETCH_ORDERS_RESPONSE',
-            data: { orders: transformedOrders },
-            id: messageId
-        });
-    } catch (error) {
-        console.error('❌ Wix: Error fetching orders:', error);
-        sendErrorToIframe("Failed to fetch orders", messageId);
-    }
-}
+        console.log("All items processed, creating order object...");
 
-async function handleAdminAction(actionData, messageId) {
-    const { action, data } = actionData;
-    try {
-        switch (action) {
-        case 'UPDATE_ORDER':
-            await handleUpdateOrder(data, messageId);
-            break;
-        default:
-            sendErrorToIframe("Unknown admin action", messageId);
-        }
-    } catch {
-        sendErrorToIframe("Failed to handle admin action", messageId);
-    }
-}
-
-async function handleUpdateOrder(orderData, messageId) {
-    try {
-        const { orderId, status } = orderData;
-
-        if (!orderId || !status) {
-            console.error('❌ Missing orderId or status');
-            sendErrorToIframe("Missing orderId or status", messageId);
-            return;
-        }
-
-        const updatedOrder = await wixData.update("Orders", {
-            _id: orderId,
-            status,
-            _updatedDate: new Date()
-        });
-
-        sendMessageToIframe({
-            type: 'ADMIN_ACTION_RESPONSE',
-            data: { action: 'UPDATE_ORDER', success: true, orderId },
-            id: messageId
-        });
-
-        console.log('✅ Order updated via handleUpdateOrder:', updatedOrder);
-
-    } catch (error) {
-        console.error('❌ Error in handleUpdateOrder:', error);
-        sendErrorToIframe("Failed to update order: " + error.message, messageId);
-    }
-}
-
-async function handleUpdateOrderStatus(orderData, messageId) {
-    try {
-        console.log('🔄 Processing order status update:', orderData);
-
-        const { orderId, newStatus } = orderData;
-
-        if (!orderId || !newStatus) {
-            console.error('❌ Missing required fields:', orderData);
-            sendErrorToIframe("Missing orderId or newStatus", messageId);
-            return;
-        }
-
-        const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-        if (!validStatuses.includes(newStatus)) {
-            console.error('❌ Invalid status:', newStatus);
-            sendErrorToIframe("Invalid status value. Must be one of: " + validStatuses.join(', '), messageId);
-            return;
-        }
-
-        const existingOrder = await wixData.get("Orders", orderId);
-        if (!existingOrder) {
-            sendErrorToIframe("Order not found: " + orderId, messageId);
-            return;
-        }
-
-        const updatedOrder = await wixData.update("Orders", {
-            _id: orderId,
-            status: newStatus,
-            _updatedDate: new Date()
-        });
-
-        sendMessageToIframe({
-            type: 'UPDATE_ORDER_STATUS',
-            data: {
-                orderId,
-                newStatus,
-                success: true,
-                message: "Order status updated successfully",
-                timestamp: new Date().toISOString()
+        // Create order object with separate image columns
+        const order = {
+            orderId: data.orderId,
+            email: email,
+            customerInfo: {
+                firstName: data.customerInfo?.firstName || "",
+                lastName: data.customerInfo?.lastName || "",
+                email: data.customerInfo?.email || email,
+                phone: data.customerInfo?.phone || "",
+                address: {
+                    street: data.customerInfo?.address?.street || "",
+                    city: data.customerInfo?.address?.city || "",
+                    state: data.customerInfo?.address?.state || "",
+                    zipCode: data.customerInfo?.address?.zipCode || "",
+                    country: data.customerInfo?.address?.country || ""
+                },
+                additionalNotes: data.customerInfo?.additionalNotes || ""
             },
-            id: messageId
+            items: processedItems,
+            // Separate columns for images
+            baseImageUrls: baseImageUrls,
+            finalImageUrls: finalImageUrls,
+            subtotal: Number(data.subtotal),
+            tax: Number(data.tax),
+            shipping: Number(data.shipping),
+            total: Number(data.total),
+            currency: data.currency || "USD",
+            orderDate: data.orderDate,
+            createdAt: new Date(),
+            status: 'paid'
+        };
+
+        console.log("Saving order to database...");
+        await wixData.insert("Orders", order);
+        console.log("Order saved successfully to database");
+
+        // Send confirmation email
+        console.log("Sending confirmation email...");
+        let body = generateOrderEmailBody({
+            ...data,
+            items: processedItems, // Use processed items without image URLs
+            baseImageUrls: baseImageUrls, // Pass image URLs separately for email
+            finalImageUrls: finalImageUrls
         });
+        let to = email;
+        let subject = `Order Confirmation - ${data.orderId}`;
 
-        console.log('✅ Order updated via handleUpdateOrderStatus:', updatedOrder);
+        try {
+            const result = await sendEmail(to, subject, body);
+            console.log("Confirmation email sent successfully", result);
+        } catch (e) {
+            console.error("Email sending failed:", e);
+        }
 
-    } catch (error) {
-        console.error('❌ Error updating order status:', error);
-        sendErrorToIframe("Failed to update order status: " + error.message, messageId);
+    } catch (err) {
+        console.error("Failed to save order to database:", err);
+        throw err; // Re-throw to trigger payment failure message
     }
 }
 
-function sendDataToIframe(data) {
-    sendMessageToIframe({
-        type: 'DATA_FROM_WIX',
-        data,
-        timestamp: new Date().toISOString()
-    });
+function generateOrderEmailBody(order) {
+    return `
+<!DOCTYPE html>
+<html>
+    <body style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px;">
+      <div style="max-width:600px;margin:auto;background:#fff;border-radius:10px;padding:30px;">
+        <h2 style="color:#007bff;">Order Confirmation</h2>
+        <p>Thank you for your order, <b>${order.customerInfo?.firstName || ''} ${order.customerInfo?.lastName || ''}</b>!</p>
+        <h3>Order #${order.orderId || ''}</h3>
+        <hr>
+        <h4>Order Items</h4>
+        ${order.items.map((item, index) => `
+          <div style="display:flex;align-items:center;margin-bottom:15px;">
+            <img src="${order.finalImageUrls[index] || order.baseImageUrls[index] || '/placeholder.jpg'}" alt="${item.name}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;margin-right:15px;">
+            <div>
+              <div><b>${item.name}</b></div>
+              <div style="font-size:12px;color:#666;">
+                ${item.configuration?.mousepadType === 'rgb' ? 'RGB Gaming' : 'Standard'} • 
+                ${item.configuration?.mousepadSize} • ${item.configuration?.thickness}
+                ${item.configuration?.textElementsCount > 0 ? ` • ${item.configuration.textElementsCount} text element${item.configuration.textElementsCount !== 1 ? 's' : ''}` : ''}
+                ${item.configuration?.appliedOverlaysCount > 0 ? ` • ${item.configuration.appliedOverlaysCount} overlay${item.configuration.appliedOverlaysCount !== 1 ? 's' : ''}` : ''}
+                ${item.configuration?.rgb ? ` • RGB ${item.configuration.rgb.mode} mode` : ''}
+              </div>
+              <div>Quantity: ${item.quantity}× $${item.price} = <b>$${(item.price * item.quantity).toFixed(2)}</b></div>
+            </div>
+          </div>
+        `).join('')}
+        <hr>
+        <h4>Order Summary</h4>
+        <div>Subtotal: <b>$${order.subtotal}</b></div>
+        <div>Shipping: <b>${order.shipping === 0 ? 'Free' : `$${order.shipping}`}</b></div>
+        <div>Tax: <b>$${order.tax}</b></div>
+        <div style="font-size:18px;margin-top:10px;">Total: <b style="color:#007bff;">$${order.total}</b></div>
+        <hr>
+        <h4>Shipping Information</h4>
+        <div>Name: <b>${order.customerInfo?.firstName || ''} ${order.customerInfo?.lastName || ''}</b></div>
+        <div>Email: <b>${order.customerInfo?.email || ''}</b></div>
+        <div>Phone: <b>${order.customerInfo?.phone || ''}</b></div>
+        <div>Address: <b>
+          ${order.customerInfo?.address?.street || ''}<br>
+          ${order.customerInfo?.address?.city || ''}, ${order.customerInfo?.address?.state || ''} ${order.customerInfo?.address?.zipCode || ''}<br>
+          ${order.customerInfo?.address?.country || ''}
+        </b></div>
+        ${order.customerInfo?.additionalNotes ? `
+        <hr>
+        <h4>Additional Notes</h4>
+        <div>${order.customerInfo.additionalNotes}</div>
+        ` : ''}
+        <hr>
+        <div style="font-size:13px;color:#888;margin-top:20px;">
+          If you have any questions, contact us at support@custommousepad.com
+        </div>
+      </div>
+    </body>
+  </html>
+  `;
 }
-
-function refreshIframe() {
-    if (iframeElement) iframeElement.src = iframeElement.src;
-} 
